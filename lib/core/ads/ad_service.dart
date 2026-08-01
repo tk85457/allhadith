@@ -9,10 +9,16 @@ class AdService {
   static const String androidProductionBannerId = 'ca-app-pub-3362561286987631/2534015179';
 
   /// Production Native Ad Unit ID
-  static String androidProductionNativeId = 'ca-app-pub-3362561286987631/2534015179';
+  static const String androidProductionNativeId = 'ca-app-pub-3362561286987631/4345524361';
+
+  /// Production Rewarded Ad Unit ID
+  static const String androidProductionRewardedId = 'ca-app-pub-3362561286987631/8907851839';
 
   /// Test Banner Ad Unit ID for Android
   static const String androidTestBannerId = 'ca-app-pub-3940256099942544/6300978111';
+
+  /// Test Rewarded Ad Unit ID for Android
+  static const String androidTestRewardedId = 'ca-app-pub-3940256099942544/5224354917';
 
   /// Test Banner Ad Unit ID for iOS
   static const String iosTestBannerId = 'ca-app-pub-3940256099942544/2934735716';
@@ -34,7 +40,7 @@ class AdService {
     }
   }
 
-  /// Get appropriate Banner Ad Unit ID (Test in debug, Production in release)
+  /// Get appropriate Banner Ad Unit ID
   static String get bannerAdUnitId {
     if (kDebugMode) {
       if (Platform.isAndroid) return androidTestBannerId;
@@ -52,5 +58,54 @@ class AdService {
     }
     if (Platform.isAndroid) return androidProductionNativeId;
     return iosTestBannerId;
+  }
+
+  /// Get appropriate Rewarded Ad Unit ID
+  static String get rewardedAdUnitId {
+    if (kDebugMode) {
+      if (Platform.isAndroid) return androidTestRewardedId;
+      if (Platform.isIOS) return iosTestBannerId;
+    }
+    if (Platform.isAndroid) return androidProductionRewardedId;
+    return iosTestBannerId;
+  }
+
+  /// Helper to load & show Rewarded Ad on demand
+  static void showRewardedAd({
+    required VoidCallback onUserEarnedReward,
+    VoidCallback? onAdFailed,
+  }) {
+    if (!isSupported) {
+      onUserEarnedReward();
+      return;
+    }
+
+    RewardedAd.load(
+      adUnitId: rewardedAdUnitId,
+      request: const AdRequest(),
+      rewardedAdLoadCallback: RewardedAdLoadCallback(
+        onAdLoaded: (ad) {
+          ad.fullScreenContentCallback = FullScreenContentCallback(
+            onAdDismissedFullScreenContent: (ad) {
+              ad.dispose();
+            },
+            onAdFailedToShowFullScreenContent: (ad, err) {
+              ad.dispose();
+              onAdFailed?.call();
+            },
+          );
+
+          ad.show(
+            onUserEarnedReward: (ad, reward) {
+              onUserEarnedReward();
+            },
+          );
+        },
+        onAdFailedToLoad: (err) {
+          debugPrint('RewardedAd failed to load: ${err.message}');
+          onAdFailed?.call();
+        },
+      ),
+    );
   }
 }
