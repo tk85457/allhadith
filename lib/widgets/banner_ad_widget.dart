@@ -28,13 +28,14 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
     _loadAd();
   }
 
-  void _loadAd() {
+  void _loadAd({bool useFallback = false}) {
     if (!AdService.isSupported) return;
 
     _bannerAd?.dispose();
     _bannerAd = null;
 
-    final unitId = widget.adUnitId ?? AdService.bannerAdUnitId;
+    final primaryId = widget.adUnitId ?? AdService.bannerAdUnitId;
+    final unitId = useFallback ? AdService.androidTestBannerId : primaryId;
 
     _bannerAd = BannerAd(
       adUnitId: unitId,
@@ -49,20 +50,23 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
           }
         },
         onAdFailedToLoad: (ad, err) {
-          debugPrint('BannerAd failed to load: ${err.message}');
+          debugPrint('BannerAd ($unitId) failed to load: ${err.message}');
           ad.dispose();
           if (mounted) {
             setState(() {
               _isAdLoaded = false;
               _bannerAd = null;
             });
-            // Auto retry loading banner ad after 20 seconds if it failed
-            _retryTimer?.cancel();
-            _retryTimer = Timer(const Duration(seconds: 20), () {
-              if (mounted && !_isAdLoaded) {
-                _loadAd();
-              }
-            });
+            if (!useFallback && primaryId != AdService.androidTestBannerId) {
+              _loadAd(useFallback: true);
+            } else {
+              _retryTimer?.cancel();
+              _retryTimer = Timer(const Duration(seconds: 15), () {
+                if (mounted && !_isAdLoaded) {
+                  _loadAd(useFallback: false);
+                }
+              });
+            }
           }
         },
       ),

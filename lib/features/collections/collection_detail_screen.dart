@@ -7,6 +7,7 @@ import '../../theme/app_theme.dart';
 import '../../data/repositories/hadith_repository.dart';
 import '../settings/settings_provider.dart';
 import '../../domain/models/models.dart';
+import '../../widgets/banner_ad_widget.dart';
 
 final collectionDetailsProvider = FutureProvider.family<HadithCollection?, int>(
   (ref, id) async {
@@ -34,6 +35,7 @@ class CollectionDetailScreen extends ConsumerWidget {
     final hadithsAsync = ref.watch(collectionHadithsProvider(collectionId));
 
     return Scaffold(
+      bottomNavigationBar: const BannerAdWidget(),
       appBar: AppBar(
         title: collectionAsync.when(
           data: (c) => Text(c?.name ?? 'Collection'),

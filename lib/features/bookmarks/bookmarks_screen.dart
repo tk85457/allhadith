@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:go_router/go_router.dart';
 import '../../theme/app_theme.dart';
 import '../../data/repositories/hadith_repository.dart';
 import '../../domain/models/models.dart';
 import '../settings/settings_provider.dart';
-
-import 'package:go_router/go_router.dart';
+import '../../widgets/banner_ad_widget.dart';
 
 final bookmarkedHadithsProvider = FutureProvider<List<Map<String, dynamic>>>((
   ref,
@@ -25,6 +25,7 @@ class BookmarksScreen extends ConsumerWidget {
     final settings = ref.watch(settingsProvider);
 
     return Scaffold(
+      bottomNavigationBar: const BannerAdWidget(),
       appBar: AppBar(title: const Text('Bookmarks'), centerTitle: true),
       body: RefreshIndicator(
         onRefresh: () async {

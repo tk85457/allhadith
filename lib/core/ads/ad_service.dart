@@ -70,7 +70,7 @@ class AdService {
     return iosTestBannerId;
   }
 
-  /// Helper to load & show Rewarded Ad on demand
+  /// Helper to load & show Rewarded Ad with fallback
   static void showRewardedAd({
     required VoidCallback onUserEarnedReward,
     VoidCallback? onAdFailed,
@@ -80,8 +80,31 @@ class AdService {
       return;
     }
 
+    _loadRewardedWithUnit(
+      unitId: rewardedAdUnitId,
+      onUserEarnedReward: onUserEarnedReward,
+      onFailed: () {
+        // Fallback to test ID if primary production ID is still propagating
+        if (rewardedAdUnitId != androidTestRewardedId) {
+          _loadRewardedWithUnit(
+            unitId: androidTestRewardedId,
+            onUserEarnedReward: onUserEarnedReward,
+            onFailed: onAdFailed,
+          );
+        } else {
+          onAdFailed?.call();
+        }
+      },
+    );
+  }
+
+  static void _loadRewardedWithUnit({
+    required String unitId,
+    required VoidCallback onUserEarnedReward,
+    VoidCallback? onFailed,
+  }) {
     RewardedAd.load(
-      adUnitId: rewardedAdUnitId,
+      adUnitId: unitId,
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
         onAdLoaded: (ad) {
@@ -91,7 +114,7 @@ class AdService {
             },
             onAdFailedToShowFullScreenContent: (ad, err) {
               ad.dispose();
-              onAdFailed?.call();
+              onFailed?.call();
             },
           );
 
@@ -102,8 +125,8 @@ class AdService {
           );
         },
         onAdFailedToLoad: (err) {
-          debugPrint('RewardedAd failed to load: ${err.message}');
-          onAdFailed?.call();
+          debugPrint('RewardedAd ($unitId) failed to load: ${err.message}');
+          onFailed?.call();
         },
       ),
     );

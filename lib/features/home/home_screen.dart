@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../theme/app_theme.dart';
 import '../../data/repositories/hadith_repository.dart';
+import '../../core/ads/ad_service.dart';
 import '../../widgets/banner_ad_widget.dart';
 import '../../domain/models/models.dart';
 import '../settings/settings_provider.dart';
@@ -73,6 +74,29 @@ class HomeScreen extends ConsumerWidget {
         ),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.volunteer_activism, color: Colors.amber),
+            tooltip: 'Support App (Watch Ad)',
+            onPressed: () {
+              HapticFeedback.heavyImpact();
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Loading Rewarded Ad... Thank you! 💚'),
+                  duration: Duration(seconds: 2),
+                ),
+              );
+              AdService.showRewardedAd(
+                onUserEarnedReward: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('JazakAllah Khair! Thank you for supporting the app! 💚'),
+                      backgroundColor: Color(0xFF0A7E47),
+                    ),
+                  );
+                },
+              );
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.settings),
             onPressed: () {

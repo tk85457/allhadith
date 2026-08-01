@@ -7,6 +7,7 @@ import '../../data/repositories/hadith_repository.dart';
 import '../../domain/models/models.dart';
 import '../settings/settings_provider.dart';
 import '../collections/collections_screen.dart';
+import '../../widgets/banner_ad_widget.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -38,40 +39,58 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     super.dispose();
   }
 
-  void _performSearch({bool loadMore = false}) async {
-    if (_controller.text.isEmpty) return;
-    setState(() {
-      _isLoading = true;
-      if (!loadMore) {
+  void _performSearch({bool isNewSearch = true}) async {
+    final query = _controller.text.trim();
+    if (query.isEmpty) return;
+
+    if (isNewSearch) {
+      setState(() {
+        _isLoading = true;
         _hasSearched = true;
-        _currentPage = 0;
         _results = [];
-      }
-    });
+        _currentPage = 0;
+        _hasMore = false;
+      });
+    } else {
+      setState(() {
+        _isLoading = true;
+      });
+    }
+
     final repo = ref.read(hadithRepositoryProvider);
-    // FIX: language and onlyPrimary filters are now passed to the query
-    final results = await repo.searchHadiths(
-      _controller.text,
-      exactMatch: !_partialMatch,
-      language: _selectedLanguage,
-      onlyPrimary: _onlyPrimaryHadiths,
-      limit: _pageSize,
-      offset: _currentPage * _pageSize,
-    );
-    setState(() {
-      if (loadMore) {
-        _results.addAll(results);
-      } else {
-        _results = results;
-      }
-      _hasMore = results.length >= _pageSize;
-      _isLoading = false;
-    });
+    final isNumber = int.tryParse(query) != null;
+
+    List<Hadith> newHadiths;
+    if (isNumber) {
+      final single = await repo.getHadithByGlobalNumber(query);
+      newHadiths = single != null ? [single] : [];
+    } else {
+      newHadiths = await repo.searchHadiths(
+        query,
+        language: _selectedLanguage,
+        onlyPrimary: _onlyPrimaryHadiths,
+        exactMatch: !_partialMatch,
+        offset: _currentPage * _pageSize,
+        limit: _pageSize,
+      );
+    }
+
+    if (mounted) {
+      setState(() {
+        if (isNewSearch) {
+          _results = newHadiths;
+        } else {
+          _results.addAll(newHadiths);
+        }
+        _isLoading = false;
+        _hasMore = newHadiths.length >= _pageSize;
+      });
+    }
   }
 
   void _loadMore() {
     _currentPage++;
-    _performSearch(loadMore: true);
+    _performSearch(isNewSearch: false);
   }
 
   @override
@@ -80,6 +99,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final settings = ref.watch(settingsProvider);
 
     return Scaffold(
+      bottomNavigationBar: const BannerAdWidget(),
       appBar: AppBar(title: const Text('Search Hadith'), centerTitle: true),
       body: Column(
         children: [

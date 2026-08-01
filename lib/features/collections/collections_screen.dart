@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../theme/app_theme.dart';
 import '../../data/repositories/hadith_repository.dart';
 import '../../domain/models/models.dart';
+import '../../widgets/banner_ad_widget.dart';
 
 final collectionsProvider = FutureProvider<List<HadithCollection>>((ref) async {
   final repo = ref.watch(hadithRepositoryProvider);
@@ -20,6 +21,7 @@ class CollectionsScreen extends ConsumerWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      bottomNavigationBar: const BannerAdWidget(),
       appBar: AppBar(
         title: const Text('Collections'),
         centerTitle: true,

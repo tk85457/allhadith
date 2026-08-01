@@ -15,6 +15,7 @@ import '../notes/notes_screen.dart' show allNotesWithInfoProvider;
 import '../hadith/hadith_list_screen.dart';
 import '../home/home_screen.dart' show statsProvider, chapterProgressProvider;
 import 'share_image_screen.dart';
+import '../../widgets/banner_ad_widget.dart';
 
 final hadithsByChapterProvider = FutureProvider.family<List<Hadith>, int>((
   ref,
@@ -93,6 +94,7 @@ class _HadithDetailScreenState extends ConsumerState<HadithDetailScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      bottomNavigationBar: const BannerAdWidget(),
       appBar: AppBar(
         title: Text('Chapter ${widget.chapterId}'),
         centerTitle: true,

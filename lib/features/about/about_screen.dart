@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/banner_ad_widget.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -11,6 +12,7 @@ class AboutScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      bottomNavigationBar: const BannerAdWidget(),
       appBar: AppBar(
         title: const Text('About'),
         centerTitle: true,
