@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import '../core/ads/ad_service.dart';
@@ -19,6 +20,7 @@ class BannerAdWidget extends StatefulWidget {
 class _BannerAdWidgetState extends State<BannerAdWidget> {
   BannerAd? _bannerAd;
   bool _isAdLoaded = false;
+  Timer? _retryTimer;
 
   @override
   void initState() {
@@ -28,6 +30,9 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   void _loadAd() {
     if (!AdService.isSupported) return;
+
+    _bannerAd?.dispose();
+    _bannerAd = null;
 
     final unitId = widget.adUnitId ?? AdService.bannerAdUnitId;
 
@@ -51,6 +56,13 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
               _isAdLoaded = false;
               _bannerAd = null;
             });
+            // Auto retry loading banner ad after 20 seconds if it failed
+            _retryTimer?.cancel();
+            _retryTimer = Timer(const Duration(seconds: 20), () {
+              if (mounted && !_isAdLoaded) {
+                _loadAd();
+              }
+            });
           }
         },
       ),
@@ -59,6 +71,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   void dispose() {
+    _retryTimer?.cancel();
     _bannerAd?.dispose();
     super.dispose();
   }
@@ -73,7 +86,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
       alignment: Alignment.center,
       width: _bannerAd!.size.width.toDouble(),
       height: _bannerAd!.size.height.toDouble(),
-      margin: const EdgeInsets.symmetric(vertical: 8.0),
+      margin: const EdgeInsets.symmetric(vertical: 6.0),
       child: AdWidget(ad: _bannerAd!),
     );
   }
