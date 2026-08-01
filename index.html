@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Al-Bukhari — Sahih Hadith Collection (Urdu & English)</title>
+    <meta name="description" content="Official developer website for Al-Bukhari Sahih Hadith Collection app in Urdu and English. Complete authentic Hadiths with search, bookmarks, and dark mode.">
+    <style>
+        :root {
+            --primary: #0A7E47;
+            --primary-accent: #12B76A;
+            --dark: #0D1117;
+            --card-bg: #161B22;
+            --text: #F0F6FC;
+            --text-secondary: #8B949E;
+            --border: #30363D;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--dark);
+            color: var(--text);
+            line-height: 1.6;
+        }
+
+        header {
+            background: linear-gradient(135deg, #0A7E47 0%, #044D29 100%);
+            padding: 60px 20px;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+
+        .header-subtitle {
+            font-size: 1.2rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin: 0 auto 25px auto;
+        }
+
+        .btn {
+            display: inline-block;
+            background-color: #FFFFFF;
+            color: #0A7E47;
+            padding: 12px 28px;
+            font-weight: 600;
+            border-radius: 30px;
+            text-decoration: none;
+            box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+            transition: transform 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 40px auto;
+            padding: 0 20px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 20px;
+            margin-top: 30px;
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 24px;
+        }
+
+        .card h3 {
+            color: var(--primary-accent);
+            margin-bottom: 10px;
+        }
+
+        .verification-box {
+            background-color: var(--card-bg);
+            border: 1px dashed var(--primary-accent);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 40px;
+        }
+
+        code {
+            background-color: #21262D;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-family: monospace;
+            color: #7EE787;
+        }
+
+        footer {
+            text-align: center;
+            padding: 40px 20px;
+            border-top: 1px solid var(--border);
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        footer a {
+            color: var(--primary-accent);
+            text-decoration: none;
+            margin: 0 10px;
+        }
+
+        footer a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1 class="header-title">Al-Bukhari</h1>
+        <p class="header-subtitle">Sahih Hadith Collection in Urdu & English — Complete, authentic, and beautifully designed for fast offline reading.</p>
+        <a href="privacy.html" class="btn">View Privacy Policy</a>
+    </header>
+
+    <div class="container">
+        <h2>App Features</h2>
+        <div class="grid">
+            <div class="card">
+                <h3>Dual Translation</h3>
+                <p>Read authentic Hadiths of Sahih al-Bukhari in complete Urdu and English with Arabic texts.</p>
+            </div>
+            <div class="card">
+                <h3>Instant Search & Navigation</h3>
+                <p>Search through 7000+ Hadiths across 97 books instantly by key terms or Hadith numbers.</p>
+            </div>
+            <div class="card">
+                <h3>Personal Bookmarks & Notes</h3>
+                <p>Save important Hadiths locally on your device with high-contrast Dark & Light modes.</p>
+            </div>
+        </div>
+
+        <div class="verification-box">
+            <h2>Publisher Verification (app-ads.txt)</h2>
+            <p>This developer website hosts the official <code>app-ads.txt</code> file for Google AdMob publisher verification.</p>
+            <p style="margin-top: 10px;">Direct link to authorized seller file: <a href="app-ads.txt" style="color: var(--primary-accent);" target="_blank">app-ads.txt</a></p>
+            <p style="margin-top: 10px;">Snippet: <code>google.com, pub-3362561286987631, DIRECT, f08c47fec0942fa0</code></p>
+        </div>
+    </div>
+
+    <footer>
+        <p>&copy; 2026 Al-Bukhari App Developer. All rights reserved.</p>
+        <p style="margin-top: 10px;">
+            <a href="privacy.html">Privacy Policy</a> | 
+            <a href="app-ads.txt">app-ads.txt</a> | 
+            <a href="https://github.com/tk85457/shahihbukhari" target="_blank">GitHub Repository</a>
+        </p>
+    </footer>
+</body>
+</html>

@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../data/repositories/hadith_repository.dart';
 import '../../domain/models/models.dart';
 import '../settings/settings_provider.dart';
+import '../../widgets/banner_ad_widget.dart';
 
 final chapterHadithsListProvider = FutureProvider.family<List<Hadith>, int>((ref, chapterId) async {
   final repo = ref.watch(hadithRepositoryProvider);
@@ -178,6 +179,7 @@ class HadithListScreen extends ConsumerWidget {
           ),
         ],
       ),
+      bottomNavigationBar: const BannerAdWidget(),
     );
   }
 }

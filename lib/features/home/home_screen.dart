@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../theme/app_theme.dart';
 import '../../data/repositories/hadith_repository.dart';
+import '../../widgets/banner_ad_widget.dart';
 import '../../domain/models/models.dart';
 import '../settings/settings_provider.dart';
 import '../common/widgets/shimmer_loading.dart';
@@ -187,6 +188,7 @@ class HomeScreen extends ConsumerWidget {
       ),
       floatingActionButton: _buildResumeButton(context, ref, isDark),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
+      bottomNavigationBar: const BannerAdWidget(),
     );
   }
 

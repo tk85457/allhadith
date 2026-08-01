@@ -8,11 +8,15 @@ import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'theme/app_theme.dart';
 import 'core/router.dart';
+import 'core/ads/ad_service.dart';
 import 'features/settings/settings_provider.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
+
+  // Initialize AdMob Mobile Ads SDK asynchronously without blocking first frame
+  AdService.initialize();
 
   // Cheap, synchronous factory wiring for web/desktop — no I/O, safe to run
   // before the first frame.
