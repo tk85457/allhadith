@@ -33,7 +33,7 @@ class _NativeAdCardWidgetState extends State<NativeAdCardWidget> {
     _inlineAd?.dispose();
     _inlineAd = null;
 
-    final unitId = widget.adUnitId ?? AdService.bannerAdUnitId;
+    final unitId = widget.adUnitId ?? AdService.nativeAdUnitId;
 
     _inlineAd = BannerAd(
       adUnitId: unitId,
