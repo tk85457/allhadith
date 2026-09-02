@@ -27,14 +27,13 @@ class _NativeAdCardWidgetState extends State<NativeAdCardWidget> {
     _loadAd();
   }
 
-  void _loadAd({bool useFallback = false}) {
+  void _loadAd() {
     if (!AdService.isSupported) return;
 
     _inlineAd?.dispose();
     _inlineAd = null;
 
-    final primaryId = widget.adUnitId ?? AdService.nativeAdUnitId;
-    final unitId = useFallback ? AdService.bannerAdUnitId : primaryId;
+    final unitId = widget.adUnitId ?? AdService.nativeAdUnitId;
 
     _inlineAd = BannerAd(
       adUnitId: unitId,
@@ -56,16 +55,12 @@ class _NativeAdCardWidgetState extends State<NativeAdCardWidget> {
               _isAdLoaded = false;
               _inlineAd = null;
             });
-            if (!useFallback) {
-              _loadAd(useFallback: true);
-            } else {
-              _retryTimer?.cancel();
-              _retryTimer = Timer(const Duration(seconds: 15), () {
-                if (mounted && !_isAdLoaded) {
-                  _loadAd(useFallback: false);
-                }
-              });
-            }
+            _retryTimer?.cancel();
+            _retryTimer = Timer(const Duration(seconds: 5), () {
+              if (mounted && !_isAdLoaded) {
+                _loadAd();
+              }
+            });
           }
         },
       ),

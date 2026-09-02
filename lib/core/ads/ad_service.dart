@@ -40,37 +40,25 @@ class AdService {
     }
   }
 
-  /// Get appropriate Banner Ad Unit ID
+  /// Get appropriate Banner Ad Unit ID (production only)
   static String get bannerAdUnitId {
-    if (kDebugMode) {
-      if (Platform.isAndroid) return androidTestBannerId;
-      if (Platform.isIOS) return iosTestBannerId;
-    }
     if (Platform.isAndroid) return androidProductionBannerId;
     return iosTestBannerId;
   }
 
-  /// Get appropriate Native / In-Feed Ad Unit ID
+  /// Get appropriate Native / In-Feed Ad Unit ID (production only)
   static String get nativeAdUnitId {
-    if (kDebugMode) {
-      if (Platform.isAndroid) return androidTestBannerId;
-      if (Platform.isIOS) return iosTestBannerId;
-    }
     if (Platform.isAndroid) return androidProductionNativeId;
     return iosTestBannerId;
   }
 
-  /// Get appropriate Rewarded Ad Unit ID
+  /// Get appropriate Rewarded Ad Unit ID (production only)
   static String get rewardedAdUnitId {
-    if (kDebugMode) {
-      if (Platform.isAndroid) return androidTestRewardedId;
-      if (Platform.isIOS) return iosTestBannerId;
-    }
     if (Platform.isAndroid) return androidProductionRewardedId;
     return iosTestBannerId;
   }
 
-  /// Helper to load & show Rewarded Ad with fallback
+  /// Helper to load & show Rewarded Ad (strictly production)
   static void showRewardedAd({
     required VoidCallback onUserEarnedReward,
     VoidCallback? onAdFailed,
@@ -83,18 +71,7 @@ class AdService {
     _loadRewardedWithUnit(
       unitId: rewardedAdUnitId,
       onUserEarnedReward: onUserEarnedReward,
-      onFailed: () {
-        // Fallback to test ID if primary production ID is still propagating
-        if (rewardedAdUnitId != androidTestRewardedId) {
-          _loadRewardedWithUnit(
-            unitId: androidTestRewardedId,
-            onUserEarnedReward: onUserEarnedReward,
-            onFailed: onAdFailed,
-          );
-        } else {
-          onAdFailed?.call();
-        }
-      },
+      onFailed: onAdFailed,
     );
   }
 

@@ -21,6 +21,14 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   BannerAd? _bannerAd;
   bool _isAdLoaded = false;
   Timer? _retryTimer;
+  Timer? _refreshTimer;
+
+  /// Google AdMob Policy: Minimum allowed refresh rate is exactly 30 seconds.
+  /// Anything faster violates AdMob invalid traffic / spam policies.
+  static const Duration _adRefreshDuration = Duration(seconds: 30);
+
+  /// Quick retry if an ad fails (4-5 seconds) so a fresh real ad is requested fast
+  static const Duration _adRetryDuration = Duration(seconds: 5);
 
   @override
   void initState() {
@@ -28,14 +36,16 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
     _loadAd();
   }
 
-  void _loadAd({bool useFallback = false}) {
+  void _loadAd() {
     if (!AdService.isSupported) return;
+
+    _retryTimer?.cancel();
+    _refreshTimer?.cancel();
 
     _bannerAd?.dispose();
     _bannerAd = null;
 
-    final primaryId = widget.adUnitId ?? AdService.bannerAdUnitId;
-    final unitId = useFallback ? AdService.androidTestBannerId : primaryId;
+    final unitId = widget.adUnitId ?? AdService.bannerAdUnitId;
 
     _bannerAd = BannerAd(
       adUnitId: unitId,
@@ -47,6 +57,13 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
             setState(() {
               _isAdLoaded = true;
             });
+            // Fastest policy-compliant auto-refresh (30s) to maximize impressions & eCPM
+            _refreshTimer?.cancel();
+            _refreshTimer = Timer(_adRefreshDuration, () {
+              if (mounted) {
+                _loadAd();
+              }
+            });
           }
         },
         onAdFailedToLoad: (ad, err) {
@@ -57,16 +74,13 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
               _isAdLoaded = false;
               _bannerAd = null;
             });
-            if (!useFallback && primaryId != AdService.androidTestBannerId) {
-              _loadAd(useFallback: true);
-            } else {
-              _retryTimer?.cancel();
-              _retryTimer = Timer(const Duration(seconds: 15), () {
-                if (mounted && !_isAdLoaded) {
-                  _loadAd(useFallback: false);
-                }
-              });
-            }
+            // Cooldown before retrying the real production ad
+            _retryTimer?.cancel();
+            _retryTimer = Timer(_adRetryDuration, () {
+              if (mounted && !_isAdLoaded) {
+                _loadAd();
+              }
+            });
           }
         },
       ),
@@ -75,6 +89,7 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   void dispose() {
+    _refreshTimer?.cancel();
     _retryTimer?.cancel();
     _bannerAd?.dispose();
     super.dispose();

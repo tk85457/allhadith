@@ -7,7 +7,6 @@ import '../../data/repositories/hadith_repository.dart';
 import '../../domain/models/models.dart';
 import '../settings/settings_provider.dart';
 import '../../widgets/banner_ad_widget.dart';
-import '../../widgets/native_ad_widget.dart';
 
 final chapterHadithsListProvider = FutureProvider.family<List<Hadith>, int>((ref, chapterId) async {
   final repo = ref.watch(hadithRepositoryProvider);
@@ -96,24 +95,15 @@ class HadithListScreen extends ConsumerWidget {
                   return Center(child: Text('عذر خواہ ہیں، کوئی حدیث نہیں ملی', style: TextStyle(color: isDark ? Colors.white70 : Colors.black87)));
                 }
 
-                final totalItems = hadiths.length + (hadiths.length ~/ 5);
-
                 return ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
-                  itemCount: totalItems,
+                  itemCount: hadiths.length,
                   itemBuilder: (context, index) {
-                    // Insert a Native Ad every 5 Hadiths (index 5, 11, 17...)
-                    if ((index + 1) % 6 == 0) {
-                      return const NativeAdCardWidget();
-                    }
-
-                    final realIndex = index - (index ~/ 6);
-                    if (realIndex >= hadiths.length) return const SizedBox.shrink();
-                    final hadith = hadiths[realIndex];
+                    final hadith = hadiths[index];
 
                     return GestureDetector(
                       onTap: () {
-                        context.push('/home/chapter/$chapterId?startIndex=$realIndex');
+                        context.push('/home/chapter/$chapterId?startIndex=$index');
                       },
                       child: Container(
                         margin: const EdgeInsets.only(bottom: 8),
@@ -179,11 +169,11 @@ class HadithListScreen extends ConsumerWidget {
                               ),
                             ),
                           ],
-                          ),
                         ),
-                      ).animate()
-                       .fade(duration: 400.ms)
-                       .slideY(begin: 0.1, end: 0, curve: Curves.easeOut, delay: (realIndex % 10 * 50).ms);
+                      ),
+                    ).animate()
+                     .fade(duration: 400.ms)
+                     .slideY(begin: 0.1, end: 0, curve: Curves.easeOut, delay: (index % 10 * 50).ms);
                   },
                 );
               },
