@@ -12,6 +12,7 @@ import '../features/notes/notes_screen.dart';
 import '../features/about/about_screen.dart';
 import '../features/onboarding/onboarding_screen.dart';
 import '../features/onboarding/language_select_screen.dart';
+import '../features/books/book_selection_screen.dart';
 
 final goRouter = GoRouter(
   initialLocation: '/',
@@ -23,6 +24,10 @@ final goRouter = GoRouter(
     GoRoute(
       path: '/language-select',
       builder: (context, state) => const LanguageSelectScreen(),
+    ),
+    GoRoute(
+      path: '/books',
+      builder: (context, state) => const BookSelectionScreen(),
     ),
     GoRoute(
       path: '/onboarding',

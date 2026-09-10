@@ -11,9 +11,9 @@ import 'package:sqflite/sqflite.dart';
 class AppDatabase {
   static final AppDatabase instance = AppDatabase._init();
   static Database? _database;
-  static const String _dbName = 'sahih_bukhari.db';
-  static const int _dbVersion = 6;
-  static const Set<String> _requiredTables = {'chapters', 'hadiths'};
+  static const String _dbName = 'all_hadith.db';
+  static const int _dbVersion = 7;
+  static const Set<String> _requiredTables = {'books', 'chapters', 'hadiths'};
 
   AppDatabase._init();
 
@@ -99,7 +99,7 @@ class AppDatabase {
         singleInstance: false,
       );
       final rows = await probeDb.rawQuery(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('chapters', 'hadiths')",
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('books', 'chapters', 'hadiths')",
       );
       final tableNames = rows
           .map((row) => row['name'])
@@ -114,10 +114,10 @@ class AppDatabase {
     }
   }
 
-  /// Web full database initialization (loads full 26MB asset)
+  /// Web full database initialization
   Future<Database> _openWebDatabase() async {
     // We use a versioned name on web to force a clean IndexedDB copy
-    const webDbName = 'sahih_bukhari_web_v6.db';
+    const webDbName = 'all_hadith_web_v1.db';
 
     // Check if DB already exists in IndexedDB
     bool exists = await databaseFactory.databaseExists(webDbName);
@@ -204,23 +204,42 @@ class AppDatabase {
 
   Future<void> _createDataTables(Database db) async {
     await db.execute('''
+CREATE TABLE IF NOT EXISTS books (
+  id INTEGER PRIMARY KEY,
+  name_english TEXT NOT NULL,
+  name_urdu TEXT NOT NULL,
+  name_arabic TEXT NOT NULL,
+  author_english TEXT NOT NULL,
+  author_urdu TEXT NOT NULL,
+  hadith_count INTEGER NOT NULL DEFAULT 0,
+  chapter_count INTEGER NOT NULL DEFAULT 0
+)''');
+
+    await db.execute('''
 CREATE TABLE IF NOT EXISTS chapters (
   id INTEGER PRIMARY KEY,
-  book_number INTEGER NOT NULL,
+  book_id INTEGER NOT NULL DEFAULT 1,
+  chapter_number INTEGER NOT NULL,
   title_arabic TEXT NOT NULL,
   title_urdu TEXT NOT NULL,
   title_english TEXT NOT NULL,
-  hadith_count INTEGER NOT NULL DEFAULT 0
+  hadith_count INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (book_id) REFERENCES books (id)
 )''');
 
     await db.execute('''
 CREATE TABLE IF NOT EXISTS hadiths (
   id INTEGER PRIMARY KEY,
+  book_id INTEGER NOT NULL DEFAULT 1,
   chapter_id INTEGER NOT NULL,
   hadith_number TEXT NOT NULL,
   arabic_text TEXT NOT NULL,
   urdu_text TEXT NOT NULL,
   english_text TEXT NOT NULL,
+  grade TEXT,
+  is_primary INTEGER DEFAULT 1,
+  parent_id INTEGER,
+  FOREIGN KEY (book_id) REFERENCES books (id),
   FOREIGN KEY (chapter_id) REFERENCES chapters (id)
 )''');
   }
@@ -229,6 +248,7 @@ CREATE TABLE IF NOT EXISTS hadiths (
     await db.execute('''
 CREATE TABLE IF NOT EXISTS bookmarks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  book_id INTEGER NOT NULL DEFAULT 1,
   hadith_id INTEGER NOT NULL,
   created_at TEXT NOT NULL,
   FOREIGN KEY (hadith_id) REFERENCES hadiths (id)
@@ -254,6 +274,7 @@ CREATE TABLE IF NOT EXISTS collection_hadith (
     await db.execute('''
 CREATE TABLE IF NOT EXISTS notes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  book_id INTEGER NOT NULL DEFAULT 1,
   hadith_id INTEGER NOT NULL,
   content TEXT NOT NULL,
   created_at TEXT NOT NULL,
@@ -264,6 +285,7 @@ CREATE TABLE IF NOT EXISTS notes (
     await db.execute('''
 CREATE TABLE IF NOT EXISTS reading_progress (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  book_id INTEGER NOT NULL DEFAULT 1,
   chapter_id INTEGER NOT NULL,
   hadith_index INTEGER NOT NULL DEFAULT 0,
   last_read_at TEXT NOT NULL,
@@ -272,6 +294,12 @@ CREATE TABLE IF NOT EXISTS reading_progress (
   }
 
   Future<void> _createIndexes(Database db) async {
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_chapters_book ON chapters(book_id)',
+    );
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_hadiths_book ON hadiths(book_id)',
+    );
     await db.execute(
       'CREATE INDEX IF NOT EXISTS idx_hadiths_chapter ON hadiths(chapter_id)',
     );

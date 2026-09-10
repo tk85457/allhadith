@@ -1,4 +1,4 @@
-package com.albukhari.hadith
+package com.allhadith.app
 
 import android.os.Bundle
 import androidx.activity.enableEdgeToEdge

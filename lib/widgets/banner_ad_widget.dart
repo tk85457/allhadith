@@ -33,15 +33,38 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
   @override
   void initState() {
     super.initState();
+    AdService.canRequestAdsNotifier.addListener(_onConsentChanged);
+    _checkConsentAndLoad();
+  }
+
+  void _onConsentChanged() {
+    if (!mounted) return;
+    if (_bannerAd == null && !_isAdLoaded) {
+      _loadAd();
+    }
+  }
+
+  Future<void> _checkConsentAndLoad() async {
+    if (!AdService.isSupported) return;
+
+    // Wait for the consent flow if it is still ongoing (e.g. app startup)
+    if (!AdService.isConsentGathered) {
+      await AdService.waitForConsent();
+      if (!mounted) return;
+    }
+
     _loadAd();
+  }
+
+  void _cancelTimers() {
+    _retryTimer?.cancel();
+    _refreshTimer?.cancel();
   }
 
   void _loadAd() {
     if (!AdService.isSupported) return;
 
-    _retryTimer?.cancel();
-    _refreshTimer?.cancel();
-
+    _cancelTimers();
     _bannerAd?.dispose();
     _bannerAd = null;
 
@@ -89,8 +112,8 @@ class _BannerAdWidgetState extends State<BannerAdWidget> {
 
   @override
   void dispose() {
-    _refreshTimer?.cancel();
-    _retryTimer?.cancel();
+    AdService.canRequestAdsNotifier.removeListener(_onConsentChanged);
+    _cancelTimers();
     _bannerAd?.dispose();
     super.dispose();
   }

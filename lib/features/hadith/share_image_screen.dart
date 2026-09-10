@@ -7,6 +7,7 @@ import '../../domain/models/models.dart';
 import '../../theme/app_theme.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../settings/settings_provider.dart';
+import '../books/book_provider.dart';
 import 'package:flutter/foundation.dart'; // For kIsWeb
 
 class ShareImageScreen extends ConsumerStatefulWidget {
@@ -86,12 +87,21 @@ class _ShareImageScreenState extends ConsumerState<ShareImageScreen> {
 
   Widget _buildImageCard(bool isDark) {
     final settings = ref.watch(settingsProvider);
+    final booksAsync = ref.watch(allBooksProvider);
+    final currentBook = ref.watch(currentBookProvider);
+    final book = booksAsync.value?.firstWhere(
+      (b) => b.id == widget.hadith.bookId,
+      orElse: () => currentBook,
+    ) ?? currentBook;
+    final bookName = settings.titleLanguage == 'English'
+        ? book.nameEnglish
+        : (settings.titleLanguage == 'Arabic' ? book.nameArabic : book.nameUrdu);
+    final primaryColor = AppTheme.getBookPrimaryColor(widget.hadith.bookId);
 
     // We force a specific background color for the screenshot to ensure it looks good when shared
     final bgColor = isDark ? const Color(0xFF1E1E1E) : const Color(0xFFF9F9F9);
     final cardColor = isDark ? const Color(0xFF2A2A2A) : Colors.white;
     final textColor = isDark ? Colors.grey.shade300 : Colors.grey.shade800;
-    final primaryColor = Colors.teal.shade700;
 
     return Container(
       decoration: BoxDecoration(
@@ -118,11 +128,11 @@ class _ShareImageScreenState extends ConsumerState<ShareImageScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Row(
+                Row(
                   children: [
-                    Icon(Icons.menu_book, color: Colors.white, size: 20),
-                    SizedBox(width: 8),
-                    Text('Sahih Bukhari', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
+                    const Icon(Icons.menu_book, color: Colors.white, size: 20),
+                    const SizedBox(width: 8),
+                    Text(bookName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
                   ],
                 ),
                 Text('Hadith #${widget.hadith.hadithNumber}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 16)),
@@ -209,7 +219,7 @@ class _ShareImageScreenState extends ConsumerState<ShareImageScreen> {
                     Icon(Icons.verified, color: primaryColor, size: 16),
                     const SizedBox(width: 6),
                     Text(
-                      'Shared via Sahih Bukhari App',
+                      'Shared via All Hadith (سب احادیث) App',
                       style: TextStyle(
                         color: Colors.grey.shade500,
                         fontSize: 12,
@@ -233,10 +243,14 @@ class _ShareImageScreenState extends ConsumerState<ShareImageScreen> {
       final image = await _screenshotController.capture(pixelRatio: 3.0);
       if (image == null) throw Exception('Failed to capture image');
 
+      final books = ref.read(allBooksProvider).valueOrNull ?? [];
+      final book = books.where((b) => b.id == widget.hadith.bookId).firstOrNull ?? ref.read(currentBookProvider);
+      final bookName = book?.nameEnglish ?? 'Hadith';
+
       if (kIsWeb) {
         // For web, use Share.shareXFiles with memory bytes
         final xFile = XFile.fromData(image, mimeType: 'image/png', name: 'hadith_${widget.hadith.hadithNumber}.png');
-        await Share.shareXFiles([xFile], text: 'Hadith #${widget.hadith.hadithNumber} from Sahih Bukhari');
+        await Share.shareXFiles([xFile], text: 'Hadith #${widget.hadith.hadithNumber} from $bookName');
       } else {
         // For mobile/desktop, save to temp dir first
         final directory = await getTemporaryDirectory();
@@ -244,7 +258,7 @@ class _ShareImageScreenState extends ConsumerState<ShareImageScreen> {
         await imagePath.writeAsBytes(image);
 
         final xFile = XFile(imagePath.path);
-        await Share.shareXFiles([xFile], text: 'Hadith #${widget.hadith.hadithNumber} from Sahih Bukhari');
+        await Share.shareXFiles([xFile], text: 'Hadith #${widget.hadith.hadithNumber} from $bookName');
       }
     } catch (e) {
       if (mounted) {

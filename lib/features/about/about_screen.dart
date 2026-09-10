@@ -63,7 +63,7 @@ class AboutScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 16),
                   Text(
-                    'صحیح البخاری',
+                    'سب احادیث — صحاح ستہ',
                     style: GoogleFonts.amiri(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
@@ -73,7 +73,7 @@ class AboutScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Sahih Al-Bukhari',
+                    'All Hadith — Kutub al-Sittah',
                     style: GoogleFonts.rubik(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
@@ -90,36 +90,37 @@ class AboutScreen extends StatelessWidget {
             ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.05, end: 0),
             const SizedBox(height: 16),
 
-            // About Sahih Bukhari
-            _buildCard(context, isDark, 'About Sahih Bukhari', Icons.info_outline, [
-              'Sahih al-Bukhari is a collection of hadith compiled by Imam Muhammad al-Bukhari (rahimahullah) around 846 CE / 232 AH.',
-              'It is considered by Muslims to be the most authentic collection of hadith after the Holy Quran.',
-              'Imam Bukhari collected over 600,000 hadiths and selected approximately 7,563 hadiths (with repetitions) for this collection.',
-              'The collection was completed over 16 years with extreme care and precision.',
+            // About Kutub al-Sittah
+            _buildCard(context, isDark, 'About Kutub al-Sittah', Icons.auto_stories, [
+              'Kutub al-Sittah (The Six Books) are the canonical collections of Hadith recognized across the Islamic world as the most authentic collections of prophetic traditions.',
+              'Includes: Sahih al-Bukhari, Sahih Muslim, Sunan Abu Dawood, Jami` at-Tirmidhi, Sunan an-Nasa\'i, and Sunan Ibn Majah.',
+              'Contains over 34,480 hadiths across 335 chapters with complete Arabic, Urdu, and English text.',
+              'Preserves the Sunnah of the Prophet Muhammad ﷺ with rigorous chains of transmission.',
             ], 0),
             const SizedBox(height: 12),
 
-            // About Author
-            _buildCard(context, isDark, 'About Imam Bukhari', Icons.person_outline, [
-              'Full Name: Abu Abdullah Muhammad ibn Ismail al-Bukhari',
-              'Born: 21 July 810 CE (13 Shawwal 194 AH) in Bukhara, present-day Uzbekistan',
-              'Died: 1 September 870 CE (1 Shawwal 256 AH)',
-              'He memorized the entire Quran by age 9 and began studying hadith at age 11.',
-              'He traveled extensively across the Islamic world to collect and verify hadiths.',
+            // The 6 Compilers
+            _buildCard(context, isDark, 'The 6 Revered Compilers', Icons.people_outline, [
+              '1. Imam Muhammad al-Bukhari (194–256 AH / 810–870 CE)',
+              '2. Imam Muslim ibn al-Hajjaj (204–261 AH / 820–875 CE)',
+              '3. Imam Abu Dawood al-Sijistani (202–275 AH / 817–889 CE)',
+              '4. Imam Abu `Isa at-Tirmidhi (209–279 AH / 824–892 CE)',
+              '5. Imam Ahmad an-Nasa\'i (214–303 AH / 829–915 CE)',
+              '6. Imam Ibn Majah al-Qazwini (209–273 AH / 824–887 CE)',
             ], 1),
             const SizedBox(height: 12),
 
             // App Features
             _buildCard(context, isDark, 'App Features', Icons.star_outline, [
-              '• Complete Sahih Bukhari collection',
-              '• Arabic, Urdu & English translations',
-              '• Bookmark your favourite hadiths',
-              '• Create custom collections',
-              '• Powerful search functionality',
-              '• Adjustable font sizes',
-              '• Dark & Light mode',
-              '• Notes on hadiths',
-              '• Resume reading from where you left',
+              '• All 6 canonical books in one unified application',
+              '• Book-specific themes with dynamic color palettes',
+              '• Realistic 3D isolated book covers',
+              '• Arabic text with full Urdu & English translations',
+              '• Global & book-scoped search with language filters',
+              '• Bookmarks, custom collections, and personal notes',
+              '• Hadith image card generator & sharing',
+              '• Customizable Arabic, Urdu & English typography',
+              '• Light & Dark themes with reading progress tracker',
             ], 2),
             const SizedBox(height: 24),
           ],

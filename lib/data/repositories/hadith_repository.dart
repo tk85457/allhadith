@@ -23,19 +23,44 @@ final lastProgressProvider = FutureProvider<ReadingProgress?>((ref) async {
 
 class HadithRepository {
   final AppDatabase _db;
-  final IsarService _isar;
-  HadithRepository(this._db, this._isar);
+  final IsarService? isar;
+  HadithRepository(this._db, [this.isar]);
+
+  // --- Books ---
+  Future<List<HadithBook>> getBooks() async {
+    final db = await _db.database;
+    final result = await db.query('books', orderBy: 'id ASC');
+    return result.map((e) => HadithBook.fromMap(e)).toList();
+  }
+
+  Future<HadithBook?> getBookById(int id) async {
+    final db = await _db.database;
+    final result = await db.query('books', where: 'id = ?', whereArgs: [id]);
+    if (result.isEmpty) return null;
+    return HadithBook.fromMap(result.first);
+  }
 
   // --- Chapters ---
-  Future<List<Chapter>> getChapters() async {
+  Future<List<Chapter>> getChapters({int? bookId}) async {
     final db = await _db.database;
-    final result = await db.query('chapters', orderBy: 'book_number ASC');
+    final where = bookId != null ? 'book_id = ?' : null;
+    final whereArgs = bookId != null ? [bookId] : null;
+    final result = await db.query(
+      'chapters',
+      where: where,
+      whereArgs: whereArgs,
+      orderBy: 'chapter_number ASC',
+    );
     return result.map((e) => Chapter.fromMap(e)).toList();
   }
 
-  Future<int> getTotalChapterCount() async {
+  Future<List<Chapter>> getChaptersByBook(int bookId) => getChapters(bookId: bookId);
+
+  Future<int> getTotalChapterCount({int? bookId}) async {
     final db = await _db.database;
-    final result = await db.rawQuery('SELECT COUNT(*) as c FROM chapters');
+    final where = bookId != null ? 'WHERE book_id = ?' : '';
+    final whereArgs = bookId != null ? [bookId] : null;
+    final result = await db.rawQuery('SELECT COUNT(*) as c FROM chapters $where', whereArgs);
     return result.first['c'] as int;
   }
 
@@ -123,74 +148,121 @@ class HadithRepository {
     return result.first['c'] as int;
   }
 
-  Future<int> getTotalHadithCount() async {
+  Future<int> getTotalHadithCount({int? bookId}) async {
     final db = await _db.database;
-    final result = await db.rawQuery('SELECT COUNT(*) as c FROM hadiths');
+    final where = bookId != null ? 'WHERE book_id = ?' : '';
+    final whereArgs = bookId != null ? [bookId] : null;
+    final result = await db.rawQuery('SELECT COUNT(*) as c FROM hadiths $where', whereArgs);
     return result.first['c'] as int;
   }
 
-  Future<Hadith?> getHadithByGlobalNumber(String number) async {
+  Future<Hadith?> getHadithByGlobalNumber(String number, {int? bookId}) async {
     final db = await _db.database;
+    final where = bookId != null ? 'hadith_number = ? AND book_id = ?' : 'hadith_number = ?';
+    final whereArgs = bookId != null ? [number, bookId] : [number];
     final result = await db.query(
       'hadiths',
-      where: 'hadith_number = ?',
-      whereArgs: [number],
+      where: where,
+      whereArgs: whereArgs,
       limit: 1,
     );
     if (result.isEmpty) return null;
     return Hadith.fromMap(result.first);
   }
 
-  // --- Search (Optimized with Isar) ---
-  // FIX: Fixed N+1 query problem — now fetches all hadiths in a single IN query
+  // --- Search (Fast Direct SQLite with Book & Language Filters) ---
   Future<List<Hadith>> searchHadiths(
     String query, {
+    int? bookId,
     bool exactMatch = false,
     String language = 'both',
     bool onlyPrimary = false,
     int limit = 30,
     int offset = 0,
   }) async {
-    final isarResults = await _isar.search(
-      query,
-      limit: limit,
-      offset: offset,
-      language: language,
-      onlyPrimary: onlyPrimary,
-    );
-
-    // FIX: Use a single IN query to avoid N+1 problem
-    final ids = isarResults
-        .where((ir) => ir.sqliteId != null)
-        .map((ir) => ir.sqliteId!)
-        .toList();
-    if (ids.isEmpty) return [];
-
     final db = await _db.database;
-    final placeholders = ids.map((_) => '?').join(',');
-    final rows = await db.rawQuery(
-      'SELECT * FROM hadiths WHERE id IN ($placeholders)',
-      ids,
-    );
+    final conditions = <String>[];
+    final args = <dynamic>[];
 
-    // Preserve the order returned by Isar
-    final hadithMap = <int, Hadith>{
-      for (final r in rows) r['id'] as int: Hadith.fromMap(r),
-    };
-    return ids.map((id) => hadithMap[id]).whereType<Hadith>().toList();
+    if (bookId != null && bookId > 0) {
+      conditions.add('book_id = ?');
+      args.add(bookId);
+    }
+
+    if (onlyPrimary) {
+      conditions.add('is_primary = 1');
+    }
+
+    final cleanQuery = query.trim();
+    if (cleanQuery.isNotEmpty) {
+      final pattern = exactMatch ? cleanQuery : '%$cleanQuery%';
+      if (language == 'English') {
+        conditions.add('(english_text LIKE ? OR hadith_number = ?)');
+        args.addAll([pattern, cleanQuery]);
+      } else if (language == 'Urdu' || language == 'Urdu Translation') {
+        conditions.add('(urdu_text LIKE ? OR hadith_number = ?)');
+        args.addAll([pattern, cleanQuery]);
+      } else if (language == 'Arabic') {
+        conditions.add('(arabic_text LIKE ? OR hadith_number = ?)');
+        args.addAll([pattern, cleanQuery]);
+      } else {
+        conditions.add('(urdu_text LIKE ? OR english_text LIKE ? OR arabic_text LIKE ? OR hadith_number = ?)');
+        args.addAll([pattern, pattern, pattern, cleanQuery]);
+      }
+    }
+
+    final whereClause = conditions.isNotEmpty ? 'WHERE ${conditions.join(' AND ')}' : '';
+    final rows = await db.rawQuery(
+      'SELECT * FROM hadiths $whereClause ORDER BY id ASC LIMIT ? OFFSET ?',
+      [...args, limit, offset],
+    );
+    return rows.map((r) => Hadith.fromMap(r)).toList();
   }
 
   Future<int> searchCount(
     String query, {
+    int? bookId,
     bool exactMatch = false,
     String language = 'both',
     bool onlyPrimary = false,
   }) async {
-    return _isar.searchCount(
-      query,
-      language: language,
-      onlyPrimary: onlyPrimary,
+    final db = await _db.database;
+    final conditions = <String>[];
+    final args = <dynamic>[];
+
+    if (bookId != null && bookId > 0) {
+      conditions.add('book_id = ?');
+      args.add(bookId);
+    }
+
+    if (onlyPrimary) {
+      conditions.add('is_primary = 1');
+    }
+
+    final cleanQuery = query.trim();
+    if (cleanQuery.isNotEmpty) {
+      final pattern = exactMatch ? cleanQuery : '%$cleanQuery%';
+      if (language == 'English') {
+        conditions.add('(english_text LIKE ? OR hadith_number = ?)');
+        args.addAll([pattern, cleanQuery]);
+      } else if (language == 'Urdu' || language == 'Urdu Translation') {
+        conditions.add('(urdu_text LIKE ? OR hadith_number = ?)');
+        args.addAll([pattern, cleanQuery]);
+      } else if (language == 'Arabic') {
+        conditions.add('(arabic_text LIKE ? OR hadith_number = ?)');
+        args.addAll([pattern, cleanQuery]);
+      } else {
+        conditions.add('(urdu_text LIKE ? OR english_text LIKE ? OR arabic_text LIKE ? OR hadith_number = ?)');
+        args.addAll([pattern, pattern, pattern, cleanQuery]);
+      }
+    }
+
+    final whereClause = conditions.isNotEmpty ? 'WHERE ${conditions.join(' AND ')}' : '';
+    final result = await db.rawQuery(
+      'SELECT COUNT(*) as c FROM hadiths $whereClause',
+      args,
     );
+    return result.first['c'] as int;
   }
 
   // --- Bookmarks ---
@@ -204,7 +276,7 @@ class HadithRepository {
     return result.map((e) => Hadith.fromMap(e)).toList();
   }
 
-  Future<void> toggleBookmark(int hadithId) async {
+  Future<void> toggleBookmark(int hadithId, {int? bookId}) async {
     final db = await _db.database;
     final exists = await db.query(
       'bookmarks',
@@ -212,7 +284,13 @@ class HadithRepository {
       whereArgs: [hadithId],
     );
     if (exists.isEmpty) {
+      int bId = bookId ?? 1;
+      if (bookId == null) {
+        final h = await getHadithById(hadithId);
+        if (h != null) bId = h.bookId;
+      }
       await db.insert('bookmarks', {
+        'book_id': bId,
         'hadith_id': hadithId,
         'created_at': DateTime.now().toIso8601String(),
       });
@@ -251,9 +329,14 @@ class HadithRepository {
   }
 
   // --- Reading Progress ---
-  Future<void> saveReadingProgress(int chapterId, int hadithIndex) async {
+  Future<void> saveReadingProgress(int chapterId, int hadithIndex, {int? bookId}) async {
     final db = await _db.database;
     final now = DateTime.now().toIso8601String();
+    int bId = bookId ?? 1;
+    if (bookId == null) {
+      final ch = await getChapterById(chapterId);
+      if (ch != null) bId = ch.bookId;
+    }
     final existing = await db.query(
       'reading_progress',
       where: 'chapter_id = ?',
@@ -261,6 +344,7 @@ class HadithRepository {
     );
     if (existing.isEmpty) {
       await db.insert('reading_progress', {
+        'book_id': bId,
         'chapter_id': chapterId,
         'hadith_index': hadithIndex,
         'last_read_at': now,
@@ -268,17 +352,21 @@ class HadithRepository {
     } else {
       await db.update(
         'reading_progress',
-        {'hadith_index': hadithIndex, 'last_read_at': now},
+        {'book_id': bId, 'hadith_index': hadithIndex, 'last_read_at': now},
         where: 'chapter_id = ?',
         whereArgs: [chapterId],
       );
     }
   }
 
-  Future<ReadingProgress?> getLastReadingProgress() async {
+  Future<ReadingProgress?> getLastReadingProgress({int? bookId}) async {
     final db = await _db.database;
+    final where = bookId != null ? 'book_id = ?' : null;
+    final whereArgs = bookId != null ? [bookId] : null;
     final result = await db.query(
       'reading_progress',
+      where: where,
+      whereArgs: whereArgs,
       orderBy: 'last_read_at DESC',
       limit: 1,
     );
@@ -287,54 +375,76 @@ class HadithRepository {
   }
 
   // --- Stats ---
-  Future<int> getBookmarkCount() async {
+  Future<int> getBookmarkCount({int? bookId}) async {
     final db = await _db.database;
-    final r = await db.rawQuery('SELECT COUNT(*) as c FROM bookmarks');
+    final where = bookId != null ? 'WHERE book_id = ?' : '';
+    final whereArgs = bookId != null ? [bookId] : null;
+    final r = await db.rawQuery('SELECT COUNT(*) as c FROM bookmarks $where', whereArgs);
     return r.first['c'] as int;
   }
 
-  Future<int> getNotesCount() async {
+  Future<int> getNotesCount({int? bookId}) async {
     final db = await _db.database;
-    final r = await db.rawQuery('SELECT COUNT(*) as c FROM notes');
+    final where = bookId != null ? 'WHERE book_id = ?' : '';
+    final whereArgs = bookId != null ? [bookId] : null;
+    final r = await db.rawQuery('SELECT COUNT(*) as c FROM notes $where', whereArgs);
     return r.first['c'] as int;
   }
 
-  Future<int> getTotalReadChapters() async {
+  Future<int> getTotalReadChapters({int? bookId}) async {
     final db = await _db.database;
+    final where = bookId != null ? 'WHERE book_id = ?' : '';
+    final whereArgs = bookId != null ? [bookId] : null;
     final r = await db.rawQuery(
-      'SELECT COUNT(DISTINCT chapter_id) as c FROM reading_progress',
+      'SELECT COUNT(DISTINCT chapter_id) as c FROM reading_progress $where',
+      whereArgs,
     );
     return r.first['c'] as int;
   }
 
   // --- Bookmarks with Chapter Info ---
-  Future<List<Map<String, dynamic>>> getBookmarkedHadithsWithChapter() async {
+  Future<List<Map<String, dynamic>>> getBookmarkedHadithsWithChapter({int? bookId}) async {
     final db = await _db.database;
+    final where = bookId != null ? 'WHERE (b.book_id = ? OR h.book_id = ?)' : '';
+    final whereArgs = bookId != null ? [bookId, bookId] : null;
     final result = await db.rawQuery('''
-      SELECT h.*, c.title_urdu as chapter_title_urdu, c.title_arabic as chapter_title_arabic, c.title_english as chapter_title_english, c.book_number
+      SELECT h.*, c.title_urdu as chapter_title_urdu, c.title_arabic as chapter_title_arabic,
+             c.title_english as chapter_title_english, c.chapter_number as book_number,
+             bk.name_urdu as book_name_urdu, bk.name_english as book_name_english
       FROM hadiths h
       INNER JOIN bookmarks b ON h.id = b.hadith_id
       LEFT JOIN chapters c ON h.chapter_id = c.id
+      LEFT JOIN books bk ON h.book_id = bk.id
+      $where
       ORDER BY b.created_at DESC
-    ''');
+    ''', whereArgs);
     return result;
   }
 
   // --- Notes ---
-  Future<List<Map<String, dynamic>>> getNotesWithHadithInfo() async {
+  Future<List<Map<String, dynamic>>> getNotesWithHadithInfo({int? bookId}) async {
     final db = await _db.database;
+    final where = bookId != null ? 'WHERE (n.book_id = ? OR h.book_id = ?)' : '';
+    final whereArgs = bookId != null ? [bookId, bookId] : null;
     return await db.rawQuery('''
-      SELECT n.*, h.hadith_number,
+      SELECT n.*, h.hadith_number, bk.name_urdu as book_name_urdu, bk.name_english as book_name_english,
         SUBSTR(h.english_text, 1, 150) as hadith_preview
       FROM notes n
       LEFT JOIN hadiths h ON n.hadith_id = h.id
+      LEFT JOIN books bk ON h.book_id = bk.id
+      $where
       ORDER BY n.updated_at DESC
-    ''');
+    ''', whereArgs);
   }
 
-  Future<void> addNote(int hadithId, String content) async {
+  Future<void> addNote(int hadithId, String content, {int? bookId}) async {
     final db = await _db.database;
     final now = DateTime.now().toIso8601String();
+    int bId = bookId ?? 1;
+    if (bookId == null) {
+      final h = await getHadithById(hadithId);
+      if (h != null) bId = h.bookId;
+    }
     final existing = await db.query(
       'notes',
       where: 'hadith_id = ?',
@@ -342,6 +452,7 @@ class HadithRepository {
     );
     if (existing.isEmpty) {
       await db.insert('notes', {
+        'book_id': bId,
         'hadith_id': hadithId,
         'content': content,
         'created_at': now,
@@ -350,7 +461,7 @@ class HadithRepository {
     } else {
       await db.update(
         'notes',
-        {'content': content, 'updated_at': now},
+        {'book_id': bId, 'content': content, 'updated_at': now},
         where: 'hadith_id = ?',
         whereArgs: [hadithId],
       );
@@ -422,25 +533,26 @@ class HadithRepository {
   }
 
   // --- Hadith of the Day ---
-  // FIX: Now returns a consistent hadith per day (not ORDER BY RANDOM())
-  Future<Hadith?> getHadithOfTheDay() async {
+  Future<Hadith?> getHadithOfTheDay({int? bookId}) async {
     final db = await _db.database;
+    final where = bookId != null ? 'WHERE is_primary = 1 AND book_id = ?' : 'WHERE is_primary = 1';
+    final whereArgs = bookId != null ? [bookId] : null;
 
-    // Total primary hadiths ki count lo
     final countResult = await db.rawQuery(
-      'SELECT COUNT(*) as c FROM hadiths WHERE is_primary = 1',
+      'SELECT COUNT(*) as c FROM hadiths $where',
+      whereArgs,
     );
     final count = countResult.first['c'] as int;
     if (count == 0) return null;
 
-    // Use day-of-year as seed — different each day, but consistent within the same day
     final now = DateTime.now();
     final dayOfYear = now.difference(DateTime(now.year, 1, 1)).inDays;
     final offset = dayOfYear % count;
 
     final result = await db.query(
       'hadiths',
-      where: 'is_primary = 1',
+      where: bookId != null ? 'is_primary = 1 AND book_id = ?' : 'is_primary = 1',
+      whereArgs: whereArgs,
       orderBy: 'id ASC',
       limit: 1,
       offset: offset,
@@ -449,15 +561,20 @@ class HadithRepository {
     return Hadith.fromMap(result.first);
   }
 
-  // FIX: getRandomHadith was a duplicate of getHadithOfTheDay — now truly random
-  Future<Hadith?> getRandomHadith() async {
+  Future<Hadith?> getRandomHadith({int? bookId}) async {
     final db = await _db.database;
-    final countResult = await db.rawQuery('SELECT COUNT(*) as c FROM hadiths');
+    final where = bookId != null ? 'WHERE book_id = ?' : '';
+    final whereArgs = bookId != null ? [bookId] : null;
+
+    final countResult = await db.rawQuery('SELECT COUNT(*) as c FROM hadiths $where', whereArgs);
     final count = countResult.first['c'] as int;
     if (count == 0) return null;
+
     final offset = Random().nextInt(count);
     final result = await db.query(
       'hadiths',
+      where: bookId != null ? 'book_id = ?' : null,
+      whereArgs: whereArgs,
       orderBy: 'id ASC',
       limit: 1,
       offset: offset,
@@ -467,15 +584,18 @@ class HadithRepository {
   }
 
   // --- Chapter Progress ---
-  Future<List<Map<String, dynamic>>> getAllChapterProgress() async {
+  Future<List<Map<String, dynamic>>> getAllChapterProgress({int? bookId}) async {
     final db = await _db.database;
+    final where = bookId != null ? 'WHERE c.book_id = ?' : '';
+    final whereArgs = bookId != null ? [bookId] : null;
     return await db.rawQuery('''
-      SELECT c.id, c.book_number, c.title_urdu, c.hadith_count,
+      SELECT c.id, c.book_id, c.chapter_number as book_number, c.title_urdu, c.hadith_count,
         rp.hadith_index, rp.last_read_at
       FROM chapters c
       LEFT JOIN reading_progress rp ON c.id = rp.chapter_id
-      ORDER BY c.book_number ASC
-    ''');
+      $where
+      ORDER BY c.chapter_number ASC
+    ''', whereArgs);
   }
 
   // --- Export / Import ---

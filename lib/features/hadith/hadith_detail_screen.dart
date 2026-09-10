@@ -15,7 +15,9 @@ import '../notes/notes_screen.dart' show allNotesWithInfoProvider;
 import '../hadith/hadith_list_screen.dart';
 import '../home/home_screen.dart' show statsProvider, chapterProgressProvider;
 import 'share_image_screen.dart';
+import '../books/book_provider.dart';
 import '../../widgets/banner_ad_widget.dart';
+import '../../core/services/in_app_review_service.dart';
 
 final hadithsByChapterProvider = FutureProvider.family<List<Hadith>, int>((
   ref,
@@ -66,6 +68,21 @@ class _HadithDetailScreenState extends ConsumerState<HadithDetailScreen> {
     super.initState();
     _currentIndex = widget.startIndex;
     _pageController = PageController(initialPage: widget.startIndex);
+    _checkReviewPrompt(widget.startIndex);
+  }
+
+  void _checkReviewPrompt(int hadithIndex) {
+    if (hadithIndex >= 1) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          InAppReviewService.checkAndPromptReview(
+            context,
+            hadithIndex: hadithIndex,
+            appName: 'All Hadith',
+          );
+        }
+      });
+    }
   }
 
   @override
@@ -255,6 +272,7 @@ class _HadithDetailScreenState extends ConsumerState<HadithDetailScreen> {
               });
               // FIX: Only save progress on page change, not during build()
               _saveProgress();
+              _checkReviewPrompt(index);
             },
             itemBuilder: (context, index) {
               final activeHadith = hadiths[index];
@@ -284,17 +302,47 @@ class _HadithDetailScreenState extends ConsumerState<HadithDetailScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.stretch,
                               children: [
-                                Text(
-                                  'حدیث نمبر : ${activeHadith.hadithNumber}',
-                                  textAlign: TextAlign.center,
-                                  textDirection: TextDirection.rtl,
-                                  style: TextStyle(
-                                    color: isDark
-                                        ? Colors.white70
-                                        : Colors.black87,
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w500,
-                                  ),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      'حدیث نمبر : ${activeHadith.hadithNumber}',
+                                      textAlign: TextAlign.center,
+                                      textDirection: TextDirection.rtl,
+                                      style: TextStyle(
+                                        color: isDark
+                                            ? Colors.white70
+                                            : Colors.black87,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w500,
+                                      ),
+                                    ),
+                                    if (activeHadith.grade != null &&
+                                        activeHadith.grade!.trim().isNotEmpty) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                          vertical: 2,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: Colors.amber.withValues(alpha: 0.2),
+                                          borderRadius: BorderRadius.circular(6),
+                                          border: Border.all(
+                                            color: Colors.amber.withValues(alpha: 0.6),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          activeHadith.grade!,
+                                          style: const TextStyle(
+                                            color: Colors.amber,
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
@@ -405,24 +453,40 @@ class _HadithDetailScreenState extends ConsumerState<HadithDetailScreen> {
                                       const SizedBox(height: 12),
                                       const Divider(height: 1),
                                       const SizedBox(height: 12),
-                                      Text(
-                                        settings.titleLanguage == 'English'
-                                            ? 'Sahih Bukhari Hadith #: ${activeHadith.hadithNumber} Chapter: ${chapter?.titleEnglish ?? ''}'
-                                            : settings.titleLanguage == 'Arabic'
-                                            ? 'صحيح البخاري حديث رقم: ${activeHadith.hadithNumber} باب: ${chapter?.titleArabic ?? ''}'
-                                            : 'صحیح بخاری حدیث نمبر: ${activeHadith.hadithNumber} فصل: ${chapter?.titleUrdu ?? ''}',
-                                        textAlign: TextAlign.center,
-                                        textDirection:
+                                      Consumer(
+                                        builder: (context, ref, _) {
+                                          final booksAsync = ref.watch(allBooksProvider);
+                                          final currentBook = ref.watch(currentBookProvider);
+                                          final book = booksAsync.value?.firstWhere(
+                                            (b) => b.id == activeHadith.bookId,
+                                            orElse: () => currentBook,
+                                          ) ?? currentBook;
+                                          final bTitle = settings.titleLanguage == 'English'
+                                              ? book.nameEnglish
+                                              : settings.titleLanguage == 'Arabic'
+                                                  ? book.nameArabic
+                                                  : book.nameUrdu;
+
+                                          return Text(
                                             settings.titleLanguage == 'English'
-                                            ? TextDirection.ltr
-                                            : TextDirection.rtl,
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 12,
-                                          color: isDark
-                                              ? Colors.white70
-                                              : Colors.brown,
-                                        ),
+                                                ? '$bTitle Hadith #: ${activeHadith.hadithNumber} Chapter: ${chapter?.titleEnglish ?? ''}'
+                                                : settings.titleLanguage == 'Arabic'
+                                                ? '$bTitle حديث رقم: ${activeHadith.hadithNumber} باب: ${chapter?.titleArabic ?? ''}'
+                                                : '$bTitle حدیث نمبر: ${activeHadith.hadithNumber} فصل: ${chapter?.titleUrdu ?? ''}',
+                                            textAlign: TextAlign.center,
+                                            textDirection:
+                                                settings.titleLanguage == 'English'
+                                                ? TextDirection.ltr
+                                                : TextDirection.rtl,
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 12,
+                                              color: isDark
+                                                  ? Colors.white70
+                                                  : Colors.brown,
+                                            ),
+                                          );
+                                        },
                                       ),
                                       const SizedBox(height: 12),
                                       const Divider(height: 1),
@@ -676,7 +740,7 @@ class _HadithDetailScreenState extends ConsumerState<HadithDetailScreen> {
                 ctx,
                 isDark,
                 'Copy All',
-                '${hadith.arabicText}\n\n${hadith.urduText}\n\n${hadith.englishText}\n\n— Sahih Bukhari, Hadith #${hadith.hadithNumber}',
+                '${hadith.arabicText}\n\n${hadith.urduText}\n\n${hadith.englishText}\n\n— ${_getBookNameForHadith(hadith)}, Hadith #${hadith.hadithNumber}',
                 Icons.select_all,
               ),
             ],
@@ -684,6 +748,16 @@ class _HadithDetailScreenState extends ConsumerState<HadithDetailScreen> {
         );
       },
     );
+  }
+
+  String _getBookNameForHadith(Hadith hadith) {
+    final books = ref.read(allBooksProvider).valueOrNull ?? [];
+    try {
+      final b = books.firstWhere((book) => book.id == hadith.bookId);
+      return b.nameEnglish;
+    } catch (_) {
+      return ref.read(currentBookProvider).nameEnglish;
+    }
   }
 
   void _showShareOptions(Hadith hadith) {
@@ -719,8 +793,9 @@ class _HadithDetailScreenState extends ConsumerState<HadithDetailScreen> {
                 title: const Text('Share as Text'),
                 onTap: () {
                   Navigator.pop(ctx);
+                  final bookName = _getBookNameForHadith(hadith);
                   final text =
-                      '${hadith.arabicText}\n\n${hadith.urduText}\n\n${hadith.englishText}\n\n— Sahih Bukhari, Hadith #${hadith.hadithNumber}';
+                      '${hadith.arabicText}\n\n${hadith.urduText}\n\n${hadith.englishText}\n\n— $bookName, Hadith #${hadith.hadithNumber}';
                   Share.share(text);
                 },
               ),

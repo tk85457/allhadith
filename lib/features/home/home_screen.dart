@@ -14,24 +14,27 @@ import '../../widgets/banner_ad_widget.dart';
 import '../../domain/models/models.dart';
 import '../settings/settings_provider.dart';
 import '../common/widgets/shimmer_loading.dart';
+import '../books/book_provider.dart';
 
 final chaptersProvider = FutureProvider<List<Chapter>>((ref) async {
   final repo = ref.watch(hadithRepositoryProvider);
-  return repo.getChapters();
+  final bookId = ref.watch(selectedBookIdProvider);
+  return repo.getChaptersByBook(bookId);
 });
 
 final hadithOfTheDayProvider = FutureProvider<Hadith?>((ref) async {
   final repo = ref.watch(hadithRepositoryProvider);
-  // FIX: Now returns a consistent hadith per day, not a different one on every restart
-  return repo.getHadithOfTheDay();
+  final bookId = ref.watch(selectedBookIdProvider);
+  return repo.getHadithOfTheDay(bookId: bookId);
 });
 
 final statsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
   final repo = ref.watch(hadithRepositoryProvider);
-  final bookmarks = await repo.getBookmarkCount();
-  final notes = await repo.getNotesCount();
-  final readChapters = await repo.getTotalReadChapters();
-  final totalChapters = await repo.getTotalChapterCount();
+  final bookId = ref.watch(selectedBookIdProvider);
+  final bookmarks = await repo.getBookmarkCount(bookId: bookId);
+  final notes = await repo.getNotesCount(bookId: bookId);
+  final readChapters = await repo.getTotalReadChapters(bookId: bookId);
+  final totalChapters = await repo.getTotalChapterCount(bookId: bookId);
   final progress = totalChapters > 0
       ? (readChapters / totalChapters * 100).round()
       : 0;
@@ -45,7 +48,8 @@ final statsProvider = FutureProvider<Map<String, dynamic>>((ref) async {
 
 final chapterProgressProvider = FutureProvider<Map<int, double>>((ref) async {
   final repo = ref.watch(hadithRepositoryProvider);
-  final rows = await repo.getAllChapterProgress();
+  final bookId = ref.watch(selectedBookIdProvider);
+  final rows = await repo.getAllChapterProgress(bookId: bookId);
   final Map<int, double> progress = {};
   for (final row in rows) {
     final id = row['id'] as int;
@@ -64,16 +68,53 @@ class HomeScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final chaptersAsync = ref.watch(chaptersProvider);
+    final currentBook = ref.watch(currentBookProvider);
+    final selectedBookId = ref.watch(selectedBookIdProvider);
+    final settings = ref.watch(settingsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final bookTitle = settings.titleLanguage == 'English'
+        ? currentBook.nameEnglish
+        : settings.titleLanguage == 'Arabic'
+            ? currentBook.nameArabic
+            : currentBook.nameUrdu;
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text(
-          'Sahih Bukhari',
-          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20),
+        title: InkWell(
+          onTap: () {
+            HapticFeedback.lightImpact();
+            context.push('/books');
+          },
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    bookTitle,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                const Icon(Icons.arrow_drop_down, size: 22),
+              ],
+            ),
+          ),
         ),
         centerTitle: true,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.auto_stories),
+            tooltip: 'All Books / تمام کتب',
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              context.push('/books');
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.volunteer_activism, color: Colors.amber),
             tooltip: 'Support App (Watch Ad)',
@@ -88,9 +129,9 @@ class HomeScreen extends ConsumerWidget {
               AdService.showRewardedAd(
                 onUserEarnedReward: () {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('JazakAllah Khair! Thank you for supporting the app! 💚'),
-                      backgroundColor: Color(0xFF0A7E47),
+                    SnackBar(
+                      content: const Text('JazakAllah Khair! Thank you for supporting the app! 💚'),
+                      backgroundColor: AppTheme.getBookPrimaryColor(selectedBookId),
                     ),
                   );
                 },
@@ -109,6 +150,9 @@ class HomeScreen extends ConsumerWidget {
             onSelected: (value) {
               HapticFeedback.selectionClick();
               switch (value) {
+                case 'ChangeBook':
+                  context.push('/books');
+                  break;
                 case 'Backup':
                   _showBackupDialog(context, ref);
                   break;
@@ -121,6 +165,16 @@ class HomeScreen extends ConsumerWidget {
               }
             },
             itemBuilder: (context) => [
+              const PopupMenuItem(
+                value: 'ChangeBook',
+                child: Row(
+                  children: [
+                    Icon(Icons.menu_book, size: 18),
+                    SizedBox(width: 8),
+                    Text('Change Book (کتب احادیث)'),
+                  ],
+                ),
+              ),
               const PopupMenuItem(
                 value: 'Backup',
                 child: Text('Backup and Restore Data'),
@@ -147,6 +201,13 @@ class HomeScreen extends ConsumerWidget {
         },
         child: CustomScrollView(
           slivers: [
+            // Quick Horizontal Book Switcher Bar
+            SliverToBoxAdapter(
+              child: _buildBookSwitcher(context, ref, selectedBookId, isDark)
+                  .animate()
+                  .fadeIn(duration: 400.ms)
+                  .slideY(begin: -0.05, end: 0),
+            ),
             // Grid Menu
             SliverToBoxAdapter(
               child: _buildGridMenu(context, ref, isDark)
@@ -223,6 +284,10 @@ class HomeScreen extends ConsumerWidget {
   ) {
     final hadithAsync = ref.watch(hadithOfTheDayProvider);
     final settings = ref.watch(settingsProvider);
+    final selectedBookId = ref.watch(selectedBookIdProvider);
+    final bookDark = AppTheme.getBookDarkColor(selectedBookId);
+    final bookPrimary = AppTheme.getBookPrimaryColor(selectedBookId);
+    final bookLight = AppTheme.getBookLightColor(selectedBookId);
 
     return hadithAsync.when(
       loading: () => const SizedBox(
@@ -239,13 +304,13 @@ class HomeScreen extends ConsumerWidget {
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
               colors: isDark
-                  ? [const Color(0xFF0F3024), const Color(0xFF0A7E47)]
-                  : [const Color(0xFF0A7E47), const Color(0xFF14A361)],
+                  ? [bookDark.withValues(alpha: 0.9), bookPrimary]
+                  : [bookPrimary, bookLight],
             ),
             borderRadius: BorderRadius.circular(24),
             boxShadow: [
               BoxShadow(
-                color: const Color(0xFF0A7E47).withValues(alpha: 0.4),
+                color: bookPrimary.withValues(alpha: 0.4),
                 blurRadius: 20,
                 offset: const Offset(0, 10),
               ),
@@ -429,11 +494,11 @@ class HomeScreen extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Row(
+              Row(
                 children: [
-                  Icon(Icons.insights, color: Color(0xFF0A7E47), size: 20),
-                  SizedBox(width: 8),
-                  Text(
+                  Icon(Icons.insights, color: AppTheme.getBookPrimaryColor(ref.watch(selectedBookIdProvider)), size: 20),
+                  const SizedBox(width: 8),
+                  const Text(
                     'پڑھنے کی تفصیلات (Insights)',
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                   ),
@@ -463,7 +528,7 @@ class HomeScreen extends ConsumerWidget {
                     'Progress',
                     '${stats['progress']}%',
                     Icons.auto_graph,
-                    const Color(0xFF0A7E47),
+                    AppTheme.getBookPrimaryColor(ref.watch(selectedBookIdProvider)),
                     isDark: isDark,
                   ),
                 ],
@@ -509,6 +574,94 @@ class HomeScreen extends ConsumerWidget {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildBookSwitcher(
+    BuildContext context,
+    WidgetRef ref,
+    int selectedBookId,
+    bool isDark,
+  ) {
+    final booksAsync = ref.watch(allBooksProvider);
+    final settings = ref.watch(settingsProvider);
+
+    return booksAsync.when(
+      data: (books) {
+        return Container(
+          height: 46,
+          margin: const EdgeInsets.fromLTRB(12, 10, 12, 2),
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            itemCount: books.length + 1,
+            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return ActionChip(
+                  avatar: const Icon(Icons.grid_view_rounded, size: 16, color: Colors.white),
+                  label: Text(
+                    settings.titleLanguage == 'English' ? 'All Books' : 'تمام کتب',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  backgroundColor: AppTheme.getBookPrimaryColor(selectedBookId),
+                  side: BorderSide.none,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  onPressed: () {
+                    HapticFeedback.lightImpact();
+                    context.push('/books');
+                  },
+                );
+              }
+
+              final book = books[index - 1];
+              final isSelected = book.id == selectedBookId;
+              final bookColor = AppTheme.getBookPrimaryColor(book.id);
+
+              final title = settings.titleLanguage == 'English'
+                  ? book.nameEnglish
+                  : book.nameUrdu;
+
+              return FilterChip(
+                selected: isSelected,
+                label: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    color: isSelected
+                        ? Colors.white
+                        : (isDark ? Colors.white70 : Colors.black87),
+                  ),
+                ),
+                selectedColor: bookColor,
+                backgroundColor: isDark ? AppTheme.cardDark : Colors.grey.shade100,
+                checkmarkColor: Colors.white,
+                side: BorderSide(
+                  color: isSelected
+                      ? bookColor
+                      : (isDark ? Colors.white12 : Colors.grey.shade300),
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                onSelected: (_) {
+                  HapticFeedback.lightImpact();
+                  ref.read(selectedBookIdProvider.notifier).selectBook(book.id);
+                },
+              );
+            },
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => const SizedBox.shrink(),
     );
   }
 
@@ -558,7 +711,7 @@ class HomeScreen extends ConsumerWidget {
       ),
       _GridItem(Icons.share_rounded, const Color(0xFF0288D1), 'Share App', () {
         Share.share(
-          'Download Sahih Bukhari App — The most authentic collection of Hadith with Urdu, Arabic & English translations.\nhttps://play.google.com/store/apps/details?id=com.albukhari.hadith',
+          'Download All Hadith (سب احادیث) — The complete Kutub al-Sittah collection with Urdu, Arabic & English translations.\nhttps://play.google.com/store/apps/details?id=com.allhadith.app',
         );
       }),
     ];
@@ -792,12 +945,12 @@ class HomeScreen extends ConsumerWidget {
               onPressed: () async {
                 Navigator.pop(ctx);
                 final subject = Uri.encodeComponent(
-                  'Sahih Bukhari App Feedback',
+                  'All Hadith App Feedback',
                 );
                 final body = Uri.encodeComponent(
                   controller.text.trim().isNotEmpty
                       ? controller.text.trim()
-                      : 'Feedback from Sahih Bukhari App user.',
+                      : 'Feedback from All Hadith App user.',
                 );
                 final emailUri = Uri.parse(
                   'mailto:timam3730@gmail.com?subject=$subject&body=$body',

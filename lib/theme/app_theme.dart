@@ -20,6 +20,76 @@ class AppTheme {
   // Border Radius
   static const double borderRadius = 16.0;
 
+  // Book-specific color themes
+  static Color getBookPrimaryColor(int bookId) {
+    switch (bookId) {
+      case 1: // Sahih al-Bukhari - Emerald Green
+        return const Color(0xFF0F9D58);
+      case 2: // Sahih Muslim - Royal Navy Blue
+        return const Color(0xFF1A237E);
+      case 3: // Sunan Abu Dawood - Deep Dark Pine Forest Green
+        return const Color(0xFF00382E);
+      case 4: // Jami` at-Tirmidhi - Warm Persian Brown / Wine
+        return const Color(0xFF5D4037);
+      case 5: // Sunan an-Nasa'i - Antique Olive Jade Green
+        return const Color(0xFF2E5A44);
+      case 6: // Sunan Ibn Majah - Ocean Teal / Turquoise
+        return const Color(0xFF008080);
+      default:
+        return primaryGreen;
+    }
+  }
+
+  static Color getBookDarkColor(int bookId) {
+    switch (bookId) {
+      case 1:
+        return const Color(0xFF0A7E47);
+      case 2:
+        return const Color(0xFF0D1642);
+      case 3:
+        return const Color(0xFF00251E);
+      case 4:
+        return const Color(0xFF3E2723);
+      case 5:
+        return const Color(0xFF1B3B2B);
+      case 6:
+        return const Color(0xFF004D40);
+      default:
+        return primaryDark;
+    }
+  }
+
+  static Color getBookLightColor(int bookId) {
+    switch (bookId) {
+      case 1:
+        return const Color(0xFF14B866);
+      case 2:
+        return const Color(0xFF283593);
+      case 3:
+        return const Color(0xFF005647);
+      case 4:
+        return const Color(0xFF795548);
+      case 5:
+        return const Color(0xFF3F775B);
+      case 6:
+        return const Color(0xFF00A896);
+      default:
+        return primaryLight;
+    }
+  }
+
+  static LinearGradient getBookGradient(int bookId) {
+    return LinearGradient(
+      begin: Alignment.topLeft,
+      end: Alignment.bottomRight,
+      colors: [
+        getBookDarkColor(bookId),
+        getBookPrimaryColor(bookId),
+        getBookLightColor(bookId),
+      ],
+    );
+  }
+
   static Color getPrimaryColor(String colorName) {
     switch (colorName) {
       case 'Blue':

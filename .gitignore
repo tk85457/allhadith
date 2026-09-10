@@ -47,3 +47,10 @@ app.*.map.json
 .gradle_build_home/
 .gradle/
 scratch/
+
+# Android signing keys & credentials
+*.jks
+*.keystore
+key.properties
+**/android/key.properties
+.kotlin/

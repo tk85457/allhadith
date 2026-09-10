@@ -1,23 +1,29 @@
 <div align="center">
 
-# 📖 Sahih Al-Bukhari Hadith (صحيح البخاري)
-### Complete 7,563 Authentic Hadiths in Urdu & English — 100% Offline
+# 📖 All Hadith — Kutub al-Sittah (سب احادیث — صحاح ستہ)
+### Complete 6 Authentic Canonical Hadith Books in Urdu, Arabic & English — 100% Offline
 
 [![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?style=for-the-badge&logo=flutter&logoColor=white)](https://flutter.dev)
 [![Dart](https://img.shields.io/badge/Dart-3.x-0175C2?style=for-the-badge&logo=dart&logoColor=white)](https://dart.dev)
-[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://play.google.com/store/apps/details?id=com.albukhari.hadith)
-[![Offline](https://img.shields.io/badge/Offline-100%25%20No%20Internet-0A7E47?style=for-the-badge)](https://play.google.com/store/apps/details?id=com.albukhari.hadith)
+[![Platform](https://img.shields.io/badge/Platform-Android%20%7C%20iOS-3DDC84?style=for-the-badge&logo=android&logoColor=white)](https://play.google.com/store/apps/details?id=com.allhadith.app)
+[![Offline](https://img.shields.io/badge/Offline-100%25%20No%20Internet-0A7E47?style=for-the-badge)](https://play.google.com/store/apps/details?id=com.allhadith.app)
 [![License](https://img.shields.io/badge/License-MIT-green.svg?style=for-the-badge)](LICENSE)
 
-[**📱 Get it on Google Play**](https://play.google.com/store/apps/details?id=com.albukhari.hadith)
+[**📱 Get it on Google Play**](https://play.google.com/store/apps/details?id=com.allhadith.app)
 
 </div>
 
 ---
 
-## 🌟 About Sahih Al-Bukhari
+## 🌟 About All Hadith (Kutub al-Sittah)
 
-**Sahih Al-Bukhari (صحيح البخاري)**, compiled by **Imam Muhammad al-Bukhari (rahimahullah)**, is universally recognized by Muslim scholars as the **most authentic Islamic book after the Holy Quran**.
+**Kutub al-Sittah (الكتب الستة)** are the six canonical Hadith collections in Sunni Islam:
+1. **Sahih Bukhari** (صحيح البخاري) — Imam Al-Bukhari
+2. **Sahih Muslim** (صحيح مسلم) — Imam Muslim
+3. **Jami' at-Tirmidhi** (جامع الترمذي) — Imam At-Tirmidhi
+4. **Sunan Abu Dawood** (سنن أبي داود) — Imam Abu Dawood
+5. **Sunan an-Nasa'i** (سنن النسائي) — Imam An-Nasa'i
+6. **Sunan Ibn Majah** (سنن ابن ماجه) — Imam Ibn Majah
 
 This modern Flutter application delivers all **97 Books and 7,563 authentic Hadiths** with high-speed instant search, side-by-side Urdu & English translations, Arabic text, and dark mode support.
 

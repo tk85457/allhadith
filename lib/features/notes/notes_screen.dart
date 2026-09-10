@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import '../../theme/app_theme.dart';
 import '../../data/repositories/hadith_repository.dart';
+import '../books/book_provider.dart';
 import '../../widgets/banner_ad_widget.dart';
 
 final allNotesWithInfoProvider = FutureProvider<List<Map<String, dynamic>>>((
@@ -137,6 +138,7 @@ class NotesScreen extends ConsumerWidget {
                 final hadithNumber = row['hadith_number']?.toString() ?? '?';
                 final hadithPreview = (row['hadith_preview'] as String? ?? '')
                     .toString();
+                final bookName = row['book_name_english'] as String? ?? '';
 
                 return Dismissible(
                   key: Key('note_$noteId'),
@@ -161,6 +163,8 @@ class NotesScreen extends ConsumerWidget {
                       final repo = ref.read(hadithRepositoryProvider);
                       final hadith = await repo.getHadithById(hadithId);
                       if (hadith != null) {
+                        // Switch active book to match this note's hadith
+                        await ref.read(selectedBookIdProvider.notifier).selectBook(hadith.bookId);
                         final hIndex = await repo.getHadithIndex(
                           hadith.chapterId,
                           hadith.hadithNumber,
@@ -195,25 +199,54 @@ class NotesScreen extends ConsumerWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(
-                                    context,
-                                  ).primaryColor.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  'Hadith #$hadithNumber',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                    color: Theme.of(context).primaryColor,
+                              Wrap(
+                                spacing: 6,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  if (bookName.isNotEmpty)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 2,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context).primaryColor.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color: Theme.of(context).primaryColor.withValues(alpha: 0.3),
+                                          width: 0.5,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        bookName,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 11,
+                                          color: Theme.of(context).primaryColor,
+                                        ),
+                                      ),
+                                    ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 8,
+                                      vertical: 3,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(
+                                        context,
+                                      ).primaryColor.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      'Hadith #$hadithNumber',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 12,
+                                        color: Theme.of(context).primaryColor,
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                ],
                               ),
                               Text(
                                 _formatDate(updatedAt),

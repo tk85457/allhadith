@@ -7,6 +7,7 @@ import '../../theme/app_theme.dart';
 import '../../data/repositories/hadith_repository.dart';
 import '../settings/settings_provider.dart';
 import '../../domain/models/models.dart';
+import '../books/book_provider.dart';
 import '../../widgets/banner_ad_widget.dart';
 
 final collectionDetailsProvider = FutureProvider.family<HadithCollection?, int>(
@@ -86,6 +87,8 @@ class CollectionDetailScreen extends ConsumerWidget {
               return InkWell(
                 onTap: () async {
                   final repo = ref.read(hadithRepositoryProvider);
+                  // Switch active book to match this collection item
+                  await ref.read(selectedBookIdProvider.notifier).selectBook(hadith.bookId);
                   final hIndex = await repo.getHadithIndex(
                     hadith.chapterId,
                     hadith.hadithNumber,
@@ -119,25 +122,53 @@ class CollectionDetailScreen extends ConsumerWidget {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 3,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Theme.of(
-                                context,
-                              ).primaryColor.withValues(alpha: 0.1),
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            child: Text(
-                              'Hadith #${hadith.hadithNumber} — Ch. ${hadith.chapterId}',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 12,
-                                color: Theme.of(context).primaryColor,
+                          Wrap(
+                            spacing: 6,
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.getBookPrimaryColor(hadith.bookId).withValues(alpha: 0.15),
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: AppTheme.getBookPrimaryColor(hadith.bookId).withValues(alpha: 0.35),
+                                    width: 0.5,
+                                  ),
+                                ),
+                                child: Text(
+                                  _getBookName(hadith.bookId),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                    color: AppTheme.getBookPrimaryColor(hadith.bookId),
+                                  ),
+                                ),
                               ),
-                            ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 6,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Theme.of(
+                                    context,
+                                  ).primaryColor.withValues(alpha: 0.1),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: Text(
+                                  'Hadith #${hadith.hadithNumber}',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 11,
+                                    color: Theme.of(context).primaryColor,
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                           Icon(
                             Icons.bookmark,
@@ -166,7 +197,7 @@ class CollectionDetailScreen extends ConsumerWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Sahih Bukhari',
+                        _getBookName(hadith.bookId),
                         style: TextStyle(
                           fontSize: 11,
                           color: Colors.grey.shade500,
@@ -183,4 +214,24 @@ class CollectionDetailScreen extends ConsumerWidget {
       ),
     );
   }
+
+  String _getBookName(int bookId) {
+    switch (bookId) {
+      case 1:
+        return 'Sahih al-Bukhari';
+      case 2:
+        return 'Sahih Muslim';
+      case 3:
+        return 'Sunan Abu Dawood';
+      case 4:
+        return 'Jami` at-Tirmidhi';
+      case 5:
+        return "Sunan an-Nasa'i";
+      case 6:
+        return 'Sunan Ibn Majah';
+      default:
+        return 'Hadith';
+    }
+  }
 }
+

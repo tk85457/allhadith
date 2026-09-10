@@ -6,6 +6,7 @@ import '../../theme/app_theme.dart';
 import '../../data/repositories/hadith_repository.dart';
 import '../../domain/models/models.dart';
 import '../settings/settings_provider.dart';
+import '../books/book_provider.dart';
 import '../../widgets/banner_ad_widget.dart';
 
 final bookmarkedHadithsProvider = FutureProvider<List<Map<String, dynamic>>>((
@@ -149,7 +150,7 @@ class BookmarksScreen extends ConsumerWidget {
                     ? chapterTitleArabic
                     : chapterTitleUrdu;
 
-                final bookNumber = row['book_number'] as int? ?? 0;
+                final bookName = row['book_name_english'] as String? ?? 'Hadith';
 
                 return Dismissible(
                   key: Key('bookmark_${hadith.id}'),
@@ -177,6 +178,8 @@ class BookmarksScreen extends ConsumerWidget {
                   child: InkWell(
                     onTap: () async {
                       final repo = ref.read(hadithRepositoryProvider);
+                      // Switch active book to match this hadith's collection
+                      await ref.read(selectedBookIdProvider.notifier).selectBook(hadith.bookId);
                       final hIndex = await repo.getHadithIndex(
                         hadith.chapterId,
                         hadith.hadithNumber,
@@ -210,25 +213,53 @@ class BookmarksScreen extends ConsumerWidget {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 3,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: Theme.of(
-                                    context,
-                                  ).primaryColor.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                child: Text(
-                                  'Hadith #${hadith.hadithNumber} — Book $bookNumber',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 12,
-                                    color: Theme.of(context).primaryColor,
+                              Wrap(
+                                spacing: 6,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.getBookPrimaryColor(hadith.bookId).withValues(alpha: 0.15),
+                                      borderRadius: BorderRadius.circular(4),
+                                      border: Border.all(
+                                        color: AppTheme.getBookPrimaryColor(hadith.bookId).withValues(alpha: 0.35),
+                                        width: 0.5,
+                                      ),
+                                    ),
+                                    child: Text(
+                                      bookName,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11,
+                                        color: AppTheme.getBookPrimaryColor(hadith.bookId),
+                                      ),
+                                    ),
                                   ),
-                                ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 6,
+                                      vertical: 2,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: Theme.of(
+                                        context,
+                                      ).primaryColor.withValues(alpha: 0.1),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: Text(
+                                      'Hadith #${hadith.hadithNumber}',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 11,
+                                        color: Theme.of(context).primaryColor,
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                               Icon(
                                 Icons.bookmark,
@@ -281,7 +312,7 @@ class BookmarksScreen extends ConsumerWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            'Sahih Bukhari',
+                            bookName,
                             style: TextStyle(
                               fontSize: 11,
                               color: isDark

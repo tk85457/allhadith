@@ -15,6 +15,12 @@
 # Sqflite rules
 -keep class com.tekartik.sqflite.** { *; }
 
+# Google Play Services Ads & UMP rules
+-keep class com.google.android.gms.ads.** { *; }
+-keep class com.google.android.ump.** { *; }
+-keep class io.flutter.plugins.googlemobileads.** { *; }
+
 # General
 -dontwarn io.flutter.embedding.**
+-dontwarn com.google.android.ump.**
 -ignorewarnings

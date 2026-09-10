@@ -14,7 +14,7 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.albukhari.hadith"
+    namespace = "com.allhadith.app"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "28.2.13676358"
 
@@ -31,13 +31,13 @@ android {
         create("release") {
             keyAlias = keystoreProperties.getProperty("keyAlias")
             keyPassword = keystoreProperties.getProperty("keyPassword")
-            storeFile = file(keystoreProperties.getProperty("storeFile") ?: "upload-keystore.jks")
+            storeFile = file(keystoreProperties.getProperty("storeFile") ?: "allhadith-keystore.jks")
             storePassword = keystoreProperties.getProperty("storePassword")
         }
     }
 
     defaultConfig {
-        applicationId = "com.albukhari.hadith"
+        applicationId = "com.allhadith.app"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -53,6 +53,12 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+        }
+    }
+
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
         }
     }
 }

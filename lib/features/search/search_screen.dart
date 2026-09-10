@@ -7,6 +7,7 @@ import '../../data/repositories/hadith_repository.dart';
 import '../../domain/models/models.dart';
 import '../settings/settings_provider.dart';
 import '../collections/collections_screen.dart';
+import '../books/book_provider.dart';
 import '../../widgets/banner_ad_widget.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
@@ -18,6 +19,9 @@ class SearchScreen extends ConsumerStatefulWidget {
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final _controller = TextEditingController();
+
+  // Book Filter: null means all books
+  int? _selectedBookId;
 
   // FIX: This filter now actually affects the search query
   String _selectedLanguage = 'Urdu Translation';
@@ -62,12 +66,16 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     List<Hadith> newHadiths;
     if (isNumber) {
-      final single = await repo.getHadithByGlobalNumber(query);
+      final single = await repo.getHadithByGlobalNumber(
+        query,
+        bookId: _selectedBookId,
+      );
       newHadiths = single != null ? [single] : [];
     } else {
       newHadiths = await repo.searchHadiths(
         query,
         language: _selectedLanguage,
+        bookId: _selectedBookId,
         onlyPrimary: _onlyPrimaryHadiths,
         exactMatch: !_partialMatch,
         offset: _currentPage * _pageSize,
@@ -164,6 +172,29 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
+
+                // Book Selection Filter (All Books + Kutub al-Sittah)
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildBookChip('All Books', null, isDark),
+                      const SizedBox(width: 6),
+                      _buildBookChip('Bukhari', 1, isDark),
+                      const SizedBox(width: 6),
+                      _buildBookChip('Muslim', 2, isDark),
+                      const SizedBox(width: 6),
+                      _buildBookChip('Abu Dawood', 3, isDark),
+                      const SizedBox(width: 6),
+                      _buildBookChip('Tirmidhi', 4, isDark),
+                      const SizedBox(width: 6),
+                      _buildBookChip("Nasa'i", 5, isDark),
+                      const SizedBox(width: 6),
+                      _buildBookChip('Ibn Majah', 6, isDark),
+                    ],
+                  ),
+                ).animate().fadeIn(delay: 80.ms),
+                const SizedBox(height: 8),
 
                 // FIX: Language Filter — now changes the actual search language
                 // Urdu = only Urdu text search, English = only English, Topic = all
@@ -425,12 +456,14 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                     final repo = ref.read(
                                       hadithRepositoryProvider,
                                     );
+                                    // Switch selected book to match this hadith's collection
+                                    await ref.read(selectedBookIdProvider.notifier).selectBook(hadith.bookId);
                                     final hIndex = await repo.getHadithIndex(
                                       hadith.chapterId,
                                       hadith.hadithNumber,
                                     );
                                     if (context.mounted) {
-                                      context.go(
+                                      context.push(
                                         '/home/chapter/${hadith.chapterId}?startIndex=$hIndex',
                                       );
                                     }
@@ -447,28 +480,76 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                           mainAxisAlignment:
                                               MainAxisAlignment.spaceBetween,
                                           children: [
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 6,
-                                                    vertical: 2,
+                                            Expanded(
+                                              child: Wrap(
+                                                crossAxisAlignment: WrapCrossAlignment.center,
+                                                spacing: 6,
+                                                runSpacing: 4,
+                                                children: [
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2,
+                                                    ),
+                                                    decoration: BoxDecoration(
+                                                      color: AppTheme.getBookPrimaryColor(hadith.bookId).withValues(alpha: 0.15),
+                                                      borderRadius: BorderRadius.circular(4),
+                                                      border: Border.all(
+                                                        color: AppTheme.getBookPrimaryColor(hadith.bookId).withValues(alpha: 0.35),
+                                                        width: 0.5,
+                                                      ),
+                                                    ),
+                                                    child: Text(
+                                                      _getBookShortName(hadith.bookId),
+                                                      style: TextStyle(
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 11,
+                                                        color: AppTheme.getBookPrimaryColor(hadith.bookId),
+                                                      ),
+                                                    ),
                                                   ),
-                                              decoration: BoxDecoration(
-                                                color: Theme.of(context)
-                                                    .primaryColor
-                                                    .withValues(alpha: 0.1),
-                                                borderRadius:
-                                                    BorderRadius.circular(4),
-                                              ),
-                                              child: Text(
-                                                'Hadith #${hadith.hadithNumber} — Ch. ${hadith.chapterId}',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 12,
-                                                  color: Theme.of(
-                                                    context,
-                                                  ).primaryColor,
-                                                ),
+                                                  Container(
+                                                    padding: const EdgeInsets.symmetric(
+                                                      horizontal: 6,
+                                                      vertical: 2,
+                                                    ),
+                                                    decoration: BoxDecoration(
+                                                      color: Theme.of(context)
+                                                          .primaryColor
+                                                          .withValues(alpha: 0.1),
+                                                      borderRadius: BorderRadius.circular(4),
+                                                    ),
+                                                    child: Text(
+                                                      '#${hadith.hadithNumber} — Ch. ${hadith.chapterId}',
+                                                      style: TextStyle(
+                                                        fontWeight: FontWeight.bold,
+                                                        fontSize: 11,
+                                                        color: Theme.of(
+                                                          context,
+                                                        ).primaryColor,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                  if (hadith.grade != null && hadith.grade!.isNotEmpty)
+                                                    Container(
+                                                      padding: const EdgeInsets.symmetric(
+                                                        horizontal: 5,
+                                                        vertical: 2,
+                                                      ),
+                                                      decoration: BoxDecoration(
+                                                        color: Colors.green.withValues(alpha: 0.12),
+                                                        borderRadius: BorderRadius.circular(4),
+                                                      ),
+                                                      child: Text(
+                                                        hadith.grade!,
+                                                        style: const TextStyle(
+                                                          fontSize: 10,
+                                                          fontWeight: FontWeight.w600,
+                                                          color: Colors.green,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                ],
                                               ),
                                             ),
                                             InkWell(
@@ -751,4 +832,65 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
     );
   }
+
+  Widget _buildBookChip(String label, int? bookId, bool isDark) {
+    final isSelected = _selectedBookId == bookId;
+    final color = bookId != null
+        ? AppTheme.getBookPrimaryColor(bookId)
+        : Theme.of(context).primaryColor;
+    return GestureDetector(
+      onTap: () {
+        setState(() => _selectedBookId = bookId);
+        if (_hasSearched && _controller.text.isNotEmpty) {
+          _performSearch();
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? color
+              : (isDark ? Colors.grey.shade800 : Colors.grey.shade100),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? color
+                : (isDark ? Colors.grey.shade700 : Colors.grey.shade300),
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected
+                ? Colors.white
+                : (isDark ? Colors.grey.shade300 : Colors.grey.shade800),
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _getBookShortName(int bookId) {
+    switch (bookId) {
+      case 1:
+        return 'Bukhari';
+      case 2:
+        return 'Muslim';
+      case 3:
+        return 'Abu Dawood';
+      case 4:
+        return 'Tirmidhi';
+      case 5:
+        return "Nasa'i";
+      case 6:
+        return 'Ibn Majah';
+      default:
+        return 'Hadith';
+    }
+  }
 }
+

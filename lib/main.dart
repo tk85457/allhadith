@@ -8,8 +8,8 @@ import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'theme/app_theme.dart';
 import 'core/router.dart';
-import 'core/ads/ad_service.dart';
 import 'features/settings/settings_provider.dart';
+import 'features/books/book_provider.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -25,9 +25,6 @@ void main() {
       systemNavigationBarColor: Colors.transparent,
     ),
   );
-
-  // Initialize AdMob Mobile Ads SDK asynchronously without blocking first frame
-  AdService.initialize();
 
   // Cheap, synchronous factory wiring for web/desktop — no I/O, safe to run
   // before the first frame.
@@ -69,7 +66,7 @@ class _Bootstrap extends StatelessWidget {
         }
         return ProviderScope(
           overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
-          child: const SahihBukhariApp(),
+          child: const AllHadithApp(),
         );
       },
     );
@@ -93,17 +90,20 @@ class _BootLoading extends StatelessWidget {
   }
 }
 
-class SahihBukhariApp extends ConsumerWidget {
-  const SahihBukhariApp({super.key});
+class AllHadithApp extends ConsumerWidget {
+  const AllHadithApp({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final settings = ref.watch(settingsProvider);
+    final selectedBookId = ref.watch(selectedBookIdProvider);
 
-    final primaryColor = AppTheme.getPrimaryColor(settings.uiColor);
+    final primaryColor = settings.uiColor != 'Green' && settings.uiColor != 'Default'
+        ? AppTheme.getPrimaryColor(settings.uiColor)
+        : AppTheme.getBookPrimaryColor(selectedBookId);
 
     return MaterialApp.router(
-      title: 'Al-Bukhari',
+      title: 'All Hadith',
       debugShowCheckedModeBanner: false,
       theme: settings.isDarkMode
           ? AppTheme.darkTheme(primaryColor)

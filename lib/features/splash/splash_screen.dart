@@ -4,7 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/database/app_database.dart';
-import '../../data/isar/isar_service.dart';
+import '../../core/ads/ad_service.dart';
+import '../../core/services/in_app_review_service.dart';
 
 // Read version from pubspec.yaml at build time
 const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '1.1.3');
@@ -84,21 +85,31 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _initAndNavigate() async {
-    // Start DB and prefs in parallel — navigate once both are ready
+    // Start DB, prefs, and UMP consent flow in parallel — navigate once all are ready
     final results = await Future.wait([
       // Minimum splash duration (2 seconds — for animation)
       Future.delayed(const Duration(milliseconds: 2000)),
       // DB warm-up: first query will be fast afterwards
-      AppDatabase.instance.database.then((_) => IsarService.instance.db),
+      AppDatabase.instance.database,
       // Load SharedPrefs in parallel as well
       SharedPreferences.getInstance(),
+      // Google official UMP consent flow: requestConsentInfoUpdate -> loadAndShowConsentFormIfRequired -> canRequestAds
+      AdService.gatherConsentAndInitialize().timeout(
+        const Duration(seconds: 10),
+        onTimeout: () {
+          debugPrint('AdService.gatherConsentAndInitialize timed out on splash.');
+          return AdService.canRequestAds;
+        },
+      ),
+      // Record app launch count for In-App Review (Rule: never on 1st open)
+      InAppReviewService.recordAppOpen(),
     ]);
 
     if (!mounted) return;
 
     final prefs = results[2] as SharedPreferences;
     final onboardingDone = prefs.getBool('onboarding_done') ?? false;
-    context.go(onboardingDone ? '/home' : '/language-select');
+    context.go(onboardingDone ? '/books' : '/language-select');
   }
 
   @override
@@ -252,9 +263,9 @@ class _SplashScreenState extends State<SplashScreen>
                 const SizedBox(height: 20),
 
                 Text(
-                  'صحیح البخاری',
+                  'سب احادیث — صحاح ستہ',
                   style: GoogleFonts.amiri(
-                    fontSize: 36,
+                    fontSize: 34,
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
                   ),
@@ -267,12 +278,12 @@ class _SplashScreenState extends State<SplashScreen>
                 const SizedBox(height: 8),
 
                 Text(
-                  'Sahih Al-Bukhari',
+                  'All Hadith — Kutub al-Sittah',
                   style: GoogleFonts.rubik(
                     fontSize: 18,
-                    color: Colors.white.withValues(alpha: 0.85),
-                    fontWeight: FontWeight.w500,
-                    letterSpacing: 2,
+                    color: Colors.white.withValues(alpha: 0.9),
+                    fontWeight: FontWeight.w600,
+                    letterSpacing: 1.5,
                   ),
                 )
                     .animate()
@@ -282,10 +293,10 @@ class _SplashScreenState extends State<SplashScreen>
                 const SizedBox(height: 6),
 
                 Text(
-                  'The Most Authentic Collection of Hadith',
+                  'The 6 Canonical Collections of Hadith',
                   style: GoogleFonts.rubik(
                     fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.6),
+                    color: Colors.white.withValues(alpha: 0.7),
                     letterSpacing: 1,
                   ),
                 ).animate().fade(delay: 1200.ms, duration: 500.ms),
