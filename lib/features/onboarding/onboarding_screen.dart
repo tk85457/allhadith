@@ -120,6 +120,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                           'assets/icon/icon_circular.png',
                                           width: 160,
                                           height: 160,
+                                          cacheWidth: 320,
+                                          cacheHeight: 320,
                                           fit: BoxFit.cover,
                                         ),
                                       ),

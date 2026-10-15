@@ -58,7 +58,7 @@ class _LanguageSelectScreenState extends ConsumerState<LanguageSelectScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.primaryDark,
+      backgroundColor: AppTheme.terracottaDark,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
@@ -70,11 +70,13 @@ class _LanguageSelectScreenState extends ConsumerState<LanguageSelectScreen> {
                 height: 88,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  border: Border.all(color: Colors.white.withValues(alpha: 0.6), width: 3),
+                  border: Border.all(color: AppTheme.desertDuneGold.withValues(alpha: 0.8), width: 3),
                 ),
                 child: ClipOval(
                   child: Image.asset(
                     'assets/icon/icon_circular.png',
+                    cacheWidth: 200,
+                    cacheHeight: 200,
                     fit: BoxFit.cover,
                   ),
                 ),
@@ -122,7 +124,7 @@ class _LanguageSelectScreenState extends ConsumerState<LanguageSelectScreen> {
                   onPressed: _selected == null ? null : _continue,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.white,
-                    foregroundColor: AppTheme.primaryDark,
+                    foregroundColor: AppTheme.terracottaDark,
                     disabledBackgroundColor: Colors.white.withValues(alpha: 0.3),
                     disabledForegroundColor: Colors.white.withValues(alpha: 0.6),
                     padding: const EdgeInsets.symmetric(vertical: 16),
@@ -204,7 +206,7 @@ class _LanguageCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      color: isSelected ? AppTheme.primaryDark : Colors.white,
+                      color: isSelected ? AppTheme.terracottaDark : Colors.white,
                     ),
                   ),
                   const SizedBox(height: 4),
@@ -214,7 +216,7 @@ class _LanguageCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12.5,
                       color: isSelected
-                          ? AppTheme.primaryDark.withValues(alpha: 0.7)
+                          ? AppTheme.terracottaDark.withValues(alpha: 0.7)
                           : Colors.white.withValues(alpha: 0.75),
                     ),
                   ),
@@ -226,9 +228,9 @@ class _LanguageCard extends StatelessWidget {
               height: 24,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: isSelected ? AppTheme.primaryDark : Colors.transparent,
+                color: isSelected ? AppTheme.terracottaDark : Colors.transparent,
                 border: Border.all(
-                  color: isSelected ? AppTheme.primaryDark : Colors.white.withValues(alpha: 0.6),
+                  color: isSelected ? AppTheme.terracottaDark : Colors.white.withValues(alpha: 0.6),
                   width: 2,
                 ),
               ),

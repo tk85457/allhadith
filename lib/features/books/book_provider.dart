@@ -3,17 +3,25 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../domain/models/models.dart';
 import '../../data/repositories/hadith_repository.dart';
 
+import '../settings/settings_provider.dart';
+
 /// Notifier that manages the currently selected book ID and persists it in SharedPreferences.
 class SelectedBookNotifier extends StateNotifier<int> {
-  SelectedBookNotifier() : super(1) {
-    _loadSelectedBook();
+  SelectedBookNotifier([SharedPreferences? prefs])
+      : _prefs = prefs,
+        super(prefs?.getInt(_prefKey) ?? 1) {
+    if (_prefs == null) {
+      _loadSelectedBook();
+    }
   }
 
+  SharedPreferences? _prefs;
   static const String _prefKey = 'selected_book_id';
 
   Future<void> _loadSelectedBook() async {
     try {
       final prefs = await SharedPreferences.getInstance();
+      _prefs = prefs;
       final savedId = prefs.getInt(_prefKey);
       if (savedId != null && savedId >= 1 && savedId <= 6) {
         state = savedId;
@@ -25,14 +33,20 @@ class SelectedBookNotifier extends StateNotifier<int> {
     if (bookId < 1 || bookId > 6) return;
     state = bookId;
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final prefs = _prefs ?? await SharedPreferences.getInstance();
+      _prefs = prefs;
       await prefs.setInt(_prefKey, bookId);
     } catch (_) {}
   }
 }
 
 final selectedBookIdProvider = StateNotifierProvider<SelectedBookNotifier, int>((ref) {
-  return SelectedBookNotifier();
+  try {
+    final prefs = ref.watch(sharedPreferencesProvider);
+    return SelectedBookNotifier(prefs);
+  } catch (_) {
+    return SelectedBookNotifier();
+  }
 });
 
 /// Fetches all books from the SQLite database

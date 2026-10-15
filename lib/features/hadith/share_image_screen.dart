@@ -38,7 +38,7 @@ class _ShareImageScreenState extends ConsumerState<ShareImageScreen> {
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(24),
-              child: Screenshots(
+              child: _buildScreenshotWidget(
                 child: _buildImageCard(isDark),
               ),
             ),
@@ -78,7 +78,7 @@ class _ShareImageScreenState extends ConsumerState<ShareImageScreen> {
     );
   }
 
-  Widget Screenshots({required Widget child}) {
+  Widget _buildScreenshotWidget({required Widget child}) {
     return Screenshot(
       controller: _screenshotController,
       child: child,

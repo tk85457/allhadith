@@ -17,6 +17,26 @@ class AppTheme {
   static const Color textLight = Color(0xFF616161);
   static const Color textOnDark = Color(0xFFE0E0E0);
 
+  // Warm Terracotta & Desert Dune Theme Colors
+  static const Color terracottaPrimary = Color(0xFFC25834);
+  static const Color terracottaDark = Color(0xFF8C381E);
+  static const Color terracottaLight = Color(0xFFD6734F);
+  static const Color desertDuneGold = Color(0xFFE4B98C);
+  static const Color terracottaDarkSurface = Color(0xFF160F0D);
+  static const Color terracottaCardDark = Color(0xFF241612);
+
+  // Terracotta Gradient
+  static const LinearGradient terracottaGradient = LinearGradient(
+    begin: Alignment.topLeft,
+    end: Alignment.bottomRight,
+    colors: [
+      terracottaDark,
+      terracottaPrimary,
+      terracottaLight,
+    ],
+    stops: [0.0, 0.55, 1.0],
+  );
+
   // Border Radius
   static const double borderRadius = 16.0;
 
@@ -92,6 +112,8 @@ class AppTheme {
 
   static Color getPrimaryColor(String colorName) {
     switch (colorName) {
+      case 'Terracotta':
+        return terracottaPrimary;
       case 'Blue':
         return Colors.blue;
       case 'Purple':
@@ -110,6 +132,7 @@ class AppTheme {
 
   static ThemeData lightTheme(Color primaryColor) {
     final baseTextTheme = GoogleFonts.rubikTextTheme();
+    final isTerracotta = primaryColor == terracottaPrimary;
 
     return ThemeData(
       useMaterial3: true,
@@ -117,9 +140,10 @@ class AppTheme {
       colorScheme: ColorScheme.fromSeed(
         seedColor: primaryColor,
         primary: primaryColor,
+        secondary: isTerracotta ? desertDuneGold : accentGold,
         surface: cardWhite,
       ),
-      scaffoldBackgroundColor: backgroundLight,
+      scaffoldBackgroundColor: isTerracotta ? const Color(0xFFFAF7F5) : backgroundLight,
       appBarTheme: AppBarTheme(
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
@@ -202,6 +226,12 @@ class AppTheme {
   }
 
   static ThemeData darkTheme(Color primaryColor) {
+    final isTerracotta = primaryColor == terracottaPrimary;
+    final bgDark = isTerracotta ? terracottaDarkSurface : backgroundDark;
+    final surfDark = isTerracotta ? terracottaDarkSurface : surfaceDark;
+    final cDark = isTerracotta ? terracottaCardDark : cardDark;
+    final activeColor = isTerracotta ? terracottaLight : primaryLight;
+
     final baseTextTheme = GoogleFonts.rubikTextTheme(
       ThemeData.dark().textTheme,
     );
@@ -213,23 +243,24 @@ class AppTheme {
         seedColor: primaryColor,
         brightness: Brightness.dark,
         primary: primaryColor,
-        surface: surfaceDark,
+        secondary: isTerracotta ? desertDuneGold : accentGold,
+        surface: surfDark,
       ),
-      scaffoldBackgroundColor: backgroundDark,
-      appBarTheme: const AppBarTheme(
-        backgroundColor: surfaceDark,
+      scaffoldBackgroundColor: bgDark,
+      appBarTheme: AppBarTheme(
+        backgroundColor: surfDark,
         foregroundColor: Colors.white,
         centerTitle: true,
         elevation: 0,
         scrolledUnderElevation: 2,
-        systemOverlayStyle: SystemUiOverlayStyle(
+        systemOverlayStyle: const SystemUiOverlayStyle(
           statusBarIconBrightness: Brightness.light,
           statusBarBrightness: Brightness.dark,
           systemNavigationBarIconBrightness: Brightness.light,
         ),
       ),
       cardTheme: CardThemeData(
-        color: cardDark,
+        color: cDark,
         elevation: 1,
         shadowColor: Colors.black.withValues(alpha: 0.3),
         shape: RoundedRectangleBorder(
@@ -248,7 +279,7 @@ class AppTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: primaryGreen,
+          backgroundColor: primaryColor,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(borderRadius),
@@ -258,33 +289,33 @@ class AppTheme {
         ),
       ),
       floatingActionButtonTheme: FloatingActionButtonThemeData(
-        backgroundColor: cardDark,
-        foregroundColor: primaryLight,
+        backgroundColor: cDark,
+        foregroundColor: activeColor,
         elevation: 4,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(30),
-          side: const BorderSide(color: primaryLight, width: 2),
+          side: BorderSide(color: activeColor, width: 2),
         ),
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
-          if (states.contains(WidgetState.selected)) return primaryLight;
+          if (states.contains(WidgetState.selected)) return activeColor;
           return Colors.grey;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
-            return primaryLight.withValues(alpha: 0.4);
+            return activeColor.withValues(alpha: 0.4);
           }
           return Colors.grey.withValues(alpha: 0.3);
         }),
       ),
-      sliderTheme: const SliderThemeData(
-        activeTrackColor: primaryLight,
-        thumbColor: primaryLight,
-        inactiveTrackColor: Color(0xFF424242),
+      sliderTheme: SliderThemeData(
+        activeTrackColor: activeColor,
+        thumbColor: activeColor,
+        inactiveTrackColor: const Color(0xFF424242),
       ),
       dialogTheme: DialogThemeData(
-        backgroundColor: cardDark,
+        backgroundColor: cDark,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       ),
       snackBarTheme: SnackBarThemeData(
@@ -293,7 +324,7 @@ class AppTheme {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: cardDark,
+        backgroundColor: cDark,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
         ),
@@ -319,6 +350,8 @@ class AppTheme {
 
   static Color? getFontColor(String colorName, bool isDark) {
     switch (colorName) {
+      case 'Terracotta':
+        return isDark ? desertDuneGold : terracottaPrimary;
       case 'Black':
         return isDark ? Colors.white : Colors.black;
       case 'Dark Brown':
@@ -332,6 +365,8 @@ class AppTheme {
     }
   }
 
+  static final Map<String, TextStyle> _fontStyleCache = {};
+
   static TextStyle safeGetFont(
     String fontFamily, {
     double? fontSize,
@@ -341,6 +376,10 @@ class AppTheme {
     double? wordSpacing,
     double? letterSpacing,
   }) {
+    final cacheKey = '$fontFamily-$fontSize-$height-${color?.toARGB32()}-${fontWeight?.value}-$wordSpacing-$letterSpacing';
+    final existing = _fontStyleCache[cacheKey];
+    if (existing != null) return existing;
+
     String lookupName = fontFamily;
     if (fontFamily == 'AlQalam' || fontFamily == 'PDMS Saleem') {
       lookupName = 'Amiri';
@@ -363,8 +402,9 @@ class AppTheme {
       lookupName = 'Roboto';
     }
 
+    TextStyle resolved;
     try {
-      return GoogleFonts.getFont(
+      resolved = GoogleFonts.getFont(
         lookupName,
         fontSize: fontSize,
         height: height,
@@ -374,7 +414,7 @@ class AppTheme {
         letterSpacing: letterSpacing,
       );
     } catch (e) {
-      return TextStyle(
+      resolved = TextStyle(
         fontFamily: fontFamily,
         fontSize: fontSize,
         height: height,
@@ -384,5 +424,7 @@ class AppTheme {
         letterSpacing: letterSpacing,
       );
     }
+    _fontStyleCache[cacheKey] = resolved;
+    return resolved;
   }
 }

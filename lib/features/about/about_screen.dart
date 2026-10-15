@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/banner_ad_widget.dart';
 
 class AboutScreen extends StatelessWidget {
   const AboutScreen({super.key});
@@ -12,7 +11,6 @@ class AboutScreen extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      bottomNavigationBar: const BannerAdWidget(),
       appBar: AppBar(
         title: const Text('About'),
         centerTitle: true,
@@ -57,6 +55,8 @@ class AboutScreen extends StatelessWidget {
                         'assets/icon/icon_circular.png',
                         width: 100,
                         height: 100,
+                        cacheWidth: 200,
+                        cacheHeight: 200,
                         fit: BoxFit.cover,
                       ),
                     ),
@@ -82,7 +82,7 @@ class AboutScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Version 1.0.0',
+                    'Version 1.0.3',
                     style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
                   ),
                 ],

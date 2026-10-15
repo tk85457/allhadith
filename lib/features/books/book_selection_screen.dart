@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../theme/app_theme.dart';
 import '../../domain/models/models.dart';
-import '../../widgets/banner_ad_widget.dart';
+import '../../core/ads/ad_service.dart';
 import '../settings/settings_provider.dart';
 import 'book_provider.dart';
 
@@ -20,8 +19,22 @@ class BookSelectionScreen extends ConsumerWidget {
     final settings = ref.watch(settingsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      bottomNavigationBar: const BannerAdWidget(),
+    final terracottaTheme = isDark
+        ? AppTheme.darkTheme(AppTheme.terracottaPrimary)
+        : AppTheme.lightTheme(AppTheme.terracottaPrimary);
+
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) async {
+        if (didPop) return;
+        final shouldExit = await _showExitConfirmationDialog(context, isDark);
+        if (shouldExit == true) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Theme(
+        data: terracottaTheme,
+        child: Scaffold(
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
@@ -30,7 +43,7 @@ class BookSelectionScreen extends ConsumerWidget {
             expandedHeight: 180,
             floating: false,
             pinned: true,
-            backgroundColor: AppTheme.getBookPrimaryColor(selectedBookId),
+            backgroundColor: AppTheme.terracottaPrimary,
             flexibleSpace: FlexibleSpaceBar(
               centerTitle: true,
               titlePadding: const EdgeInsets.only(bottom: 16),
@@ -52,8 +65,8 @@ class BookSelectionScreen extends ConsumerWidget {
                 ),
               ),
               background: Container(
-                decoration: BoxDecoration(
-                  gradient: AppTheme.getBookGradient(selectedBookId),
+                decoration: const BoxDecoration(
+                  gradient: AppTheme.terracottaGradient,
                 ),
                 child: Stack(
                   children: [
@@ -64,7 +77,7 @@ class BookSelectionScreen extends ConsumerWidget {
                       child: Icon(
                         Icons.auto_stories,
                         size: 200,
-                        color: Colors.white.withValues(alpha: 0.08),
+                        color: AppTheme.desertDuneGold.withValues(alpha: 0.09),
                       ),
                     ),
                     Positioned(
@@ -73,7 +86,7 @@ class BookSelectionScreen extends ConsumerWidget {
                       child: Icon(
                         Icons.menu_book_rounded,
                         size: 160,
-                        color: Colors.white.withValues(alpha: 0.06),
+                        color: Colors.white.withValues(alpha: 0.07),
                       ),
                     ),
                     SafeArea(
@@ -87,12 +100,16 @@ class BookSelectionScreen extends ConsumerWidget {
                               children: [
                                 Container(
                                   padding: const EdgeInsets.symmetric(
-                                    horizontal: 10,
-                                    vertical: 4,
+                                    horizontal: 12,
+                                    vertical: 5,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: Colors.white.withValues(alpha: 0.2),
+                                    color: AppTheme.terracottaDark.withValues(alpha: 0.5),
                                     borderRadius: BorderRadius.circular(20),
+                                    border: Border.all(
+                                      color: AppTheme.desertDuneGold.withValues(alpha: 0.65),
+                                      width: 1.2,
+                                    ),
                                   ),
                                   child: const Row(
                                     mainAxisSize: MainAxisSize.min,
@@ -100,15 +117,16 @@ class BookSelectionScreen extends ConsumerWidget {
                                       Icon(
                                         Icons.verified_rounded,
                                         size: 14,
-                                        color: Colors.white,
+                                        color: AppTheme.desertDuneGold,
                                       ),
-                                      SizedBox(width: 5),
+                                      SizedBox(width: 6),
                                       Text(
                                         'الصحاح الستة • 6 Authentic Books',
                                         style: TextStyle(
-                                          color: Colors.white,
+                                          color: AppTheme.desertDuneGold,
                                           fontSize: 11,
                                           fontWeight: FontWeight.bold,
+                                          letterSpacing: 0.3,
                                         ),
                                       ),
                                     ],
@@ -116,24 +134,33 @@ class BookSelectionScreen extends ConsumerWidget {
                                 ),
                                 Row(
                                   children: [
-                                    IconButton(
-                                      icon: const Icon(Icons.settings_outlined, color: Colors.white),
-                                      tooltip: 'Settings',
-                                      onPressed: () => context.push('/home/settings'),
+                                    Container(
+                                      decoration: BoxDecoration(
+                                        color: Colors.black.withValues(alpha: 0.15),
+                                        shape: BoxShape.circle,
+                                      ),
+                                      child: IconButton(
+                                        icon: const Icon(Icons.settings_outlined, color: Colors.white),
+                                        tooltip: 'Settings',
+                                        onPressed: () => context.push('/home/settings?from=books'),
+                                      ),
                                     ),
                                   ],
                                 ),
                               ],
                             ),
                             const Spacer(),
-                            Text(
-                              settings.titleLanguage == 'English'
-                                  ? 'Select a Hadith Collection to Begin'
-                                  : 'مطالعہ کے لیے کتاب کا انتخاب کریں',
-                              style: TextStyle(
-                                color: Colors.white.withValues(alpha: 0.92),
-                                fontSize: 13,
-                                fontWeight: FontWeight.w500,
+                            Center(
+                              child: Text(
+                                settings.titleLanguage == 'English'
+                                    ? 'Select a Hadith Collection to Begin'
+                                    : 'مطالعہ کے لیے کتاب کا انتخاب کریں',
+                                style: TextStyle(
+                                  color: AppTheme.desertDuneGold.withValues(alpha: 0.95),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: 0.5,
+                                ),
                               ),
                             ),
                           ],
@@ -156,7 +183,7 @@ class BookSelectionScreen extends ConsumerWidget {
                     width: 4,
                     height: 18,
                     decoration: BoxDecoration(
-                      color: AppTheme.getBookPrimaryColor(selectedBookId),
+                      color: AppTheme.terracottaPrimary,
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -172,12 +199,25 @@ class BookSelectionScreen extends ConsumerWidget {
                     ),
                   ),
                   const Spacer(),
-                  Text(
-                    '34,486 احادیث',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: isDark
+                          ? AppTheme.terracottaCardDark
+                          : AppTheme.desertDuneGold.withValues(alpha: 0.22),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: AppTheme.desertDuneGold.withValues(alpha: isDark ? 0.35 : 0.5),
+                        width: 1,
+                      ),
+                    ),
+                    child: Text(
+                      '34,486 احادیث',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: isDark ? AppTheme.desertDuneGold : AppTheme.terracottaDark,
+                      ),
                     ),
                   ),
                 ],
@@ -203,27 +243,28 @@ class BookSelectionScreen extends ConsumerWidget {
                       final isSelected = book.id == selectedBookId;
                       final bookColor = AppTheme.getBookPrimaryColor(book.id);
 
-                      return _BookCard(
-                        book: book,
-                        isSelected: isSelected,
-                        bookColor: bookColor,
-                        isDark: isDark,
-                        settings: settings,
-                        onTap: () {
-                          HapticFeedback.lightImpact();
-                          ref
-                              .read(selectedBookIdProvider.notifier)
-                              .selectBook(book.id);
-                          context.go('/home');
-                        },
-                      ).animate().fadeIn(
-                            delay: Duration(milliseconds: 60 * index),
-                            duration: 350.ms,
-                          ).slideY(
-                            begin: 0.1,
-                            end: 0,
-                            curve: Curves.easeOutQuad,
-                          );
+                      return RepaintBoundary(
+                        child: _BookCard(
+                          book: book,
+                          isSelected: isSelected,
+                          bookColor: bookColor,
+                          isDark: isDark,
+                          settings: settings,
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            ref
+                                .read(selectedBookIdProvider.notifier)
+                                .selectBook(book.id);
+                            AdService.showRewardedInterstitialOnBookChange(
+                              onComplete: () {
+                                if (context.mounted) {
+                                  context.go('/home');
+                                }
+                              },
+                            );
+                          },
+                        ),
+                      );
                     },
                     childCount: books.length,
                   ),
@@ -253,6 +294,99 @@ class BookSelectionScreen extends ConsumerWidget {
           ),
         ],
       ),
+    ),
+  ),
+  );
+ }
+
+  Future<bool?> _showExitConfirmationDialog(BuildContext context, bool isDark) {
+    return showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          icon: Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppTheme.terracottaPrimary.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.exit_to_app_rounded,
+              color: AppTheme.terracottaPrimary,
+              size: 32,
+            ),
+          ),
+          title: const Text(
+            'Exit App?',
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              fontSize: 19,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Are you sure you want to exit All Hadith?',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'کیا آپ واقعی ایپ بند کرنا چاہتے ہیں؟',
+                style: TextStyle(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.terracottaPrimary,
+                ),
+                textAlign: TextAlign.center,
+                textDirection: TextDirection.rtl,
+              ),
+            ],
+          ),
+          actionsAlignment: MainAxisAlignment.center,
+          actions: [
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                side: BorderSide(
+                  color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                ),
+              ),
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel / نہیں'),
+            ),
+            const SizedBox(width: 8),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppTheme.terracottaPrimary,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                elevation: 2,
+              ),
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text(
+                'Exit / بند کریں',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
@@ -294,7 +428,7 @@ class _BookCard extends StatelessWidget {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 250),
           decoration: BoxDecoration(
-            color: isDark ? AppTheme.cardDark : AppTheme.cardWhite,
+            color: isDark ? (Theme.of(context).cardTheme.color ?? AppTheme.cardDark) : AppTheme.cardWhite,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: isSelected
@@ -340,6 +474,7 @@ class _BookCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(8),
                           child: Image.asset(
                             book.coverAsset,
+                            cacheWidth: 350,
                             fit: BoxFit.contain,
                             errorBuilder: (context, error, stackTrace) {
                               return Container(

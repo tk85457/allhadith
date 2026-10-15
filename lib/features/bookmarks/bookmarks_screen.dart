@@ -7,7 +7,7 @@ import '../../data/repositories/hadith_repository.dart';
 import '../../domain/models/models.dart';
 import '../settings/settings_provider.dart';
 import '../books/book_provider.dart';
-import '../../widgets/banner_ad_widget.dart';
+import '../common/widgets/hadith_grade_badge.dart';
 
 final bookmarkedHadithsProvider = FutureProvider<List<Map<String, dynamic>>>((
   ref,
@@ -26,7 +26,6 @@ class BookmarksScreen extends ConsumerWidget {
     final settings = ref.watch(settingsProvider);
 
     return Scaffold(
-      bottomNavigationBar: const BannerAdWidget(),
       appBar: AppBar(title: const Text('Bookmarks'), centerTitle: true),
       body: RefreshIndicator(
         onRefresh: () async {
@@ -259,6 +258,7 @@ class BookmarksScreen extends ConsumerWidget {
                                       ),
                                     ),
                                   ),
+                                  HadithGradeBadge(hadith: hadith),
                                 ],
                               ),
                               Icon(

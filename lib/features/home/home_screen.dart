@@ -5,12 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../theme/app_theme.dart';
 import '../../data/repositories/hadith_repository.dart';
 import '../../core/ads/ad_service.dart';
-import '../../widgets/banner_ad_widget.dart';
 import '../../domain/models/models.dart';
 import '../settings/settings_provider.dart';
 import '../common/widgets/shimmer_loading.dart';
@@ -79,33 +79,48 @@ class HomeScreen extends ConsumerWidget {
             ? currentBook.nameArabic
             : currentBook.nameUrdu;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: InkWell(
-          onTap: () {
-            HapticFeedback.lightImpact();
-            context.push('/books');
-          },
-          borderRadius: BorderRadius.circular(8),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Flexible(
-                  child: Text(
-                    bookTitle,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                    overflow: TextOverflow.ellipsis,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        HapticFeedback.lightImpact();
+        context.go('/books');
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
+            tooltip: 'All Books / کتب فہرست',
+            onPressed: () {
+              HapticFeedback.lightImpact();
+              context.go('/books');
+            },
+          ),
+          title: InkWell(
+            onTap: () {
+              HapticFeedback.lightImpact();
+              context.push('/books');
+            },
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      bookTitle,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 4),
-                const Icon(Icons.arrow_drop_down, size: 22),
-              ],
+                  const SizedBox(width: 4),
+                  const Icon(Icons.arrow_drop_down, size: 22),
+                ],
+              ),
             ),
           ),
-        ),
-        centerTitle: true,
+          centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.auto_stories),
@@ -115,26 +130,18 @@ class HomeScreen extends ConsumerWidget {
               context.push('/books');
             },
           ),
-          IconButton(
-            icon: const Icon(Icons.volunteer_activism, color: Colors.amber),
-            tooltip: 'Support App (Watch Ad)',
-            onPressed: () {
-              HapticFeedback.heavyImpact();
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Loading Rewarded Ad... Thank you! 💚'),
-                  duration: Duration(seconds: 2),
+          ValueListenableBuilder<bool>(
+            valueListenable: AdService.isAdFreeActiveNotifier,
+            builder: (context, isAdFree, _) {
+              return IconButton(
+                icon: Icon(
+                  isAdFree ? Icons.verified_rounded : Icons.workspace_premium_outlined,
+                  color: isAdFree ? Colors.greenAccent : Colors.amber,
                 ),
-              );
-              AdService.showRewardedAd(
-                onUserEarnedReward: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('JazakAllah Khair! Thank you for supporting the app! 💚'),
-                      backgroundColor: AppTheme.getBookPrimaryColor(selectedBookId),
-                    ),
-                  );
-                },
+                tooltip: isAdFree
+                    ? '24h Ad-Free Active (${AdService.remainingAdFreeTimeFormatted})'
+                    : 'Remove Ads for 24 Hours / 24 گھنٹے اشتہارات ہٹائیں',
+                onPressed: () => _showAdFreePassDialog(context, selectedBookId),
               );
             },
           ),
@@ -142,7 +149,7 @@ class HomeScreen extends ConsumerWidget {
             icon: const Icon(Icons.settings),
             onPressed: () {
               HapticFeedback.lightImpact();
-              context.go('/home/settings');
+              context.push('/home/settings');
             },
           ),
           PopupMenuButton<String>(
@@ -157,10 +164,10 @@ class HomeScreen extends ConsumerWidget {
                   _showBackupDialog(context, ref);
                   break;
                 case 'Author':
-                  context.go('/home/about');
+                  context.push('/home/about');
                   break;
                 case 'AppIntro':
-                  context.go('/home/about');
+                  context.push('/home/about');
                   break;
               }
             },
@@ -203,42 +210,23 @@ class HomeScreen extends ConsumerWidget {
           slivers: [
             // Quick Horizontal Book Switcher Bar
             SliverToBoxAdapter(
-              child: _buildBookSwitcher(context, ref, selectedBookId, isDark)
-                  .animate()
-                  .fadeIn(duration: 400.ms)
-                  .slideY(begin: -0.05, end: 0),
+              child: _buildBookSwitcher(context, ref, selectedBookId, isDark),
             ),
             // Grid Menu
             SliverToBoxAdapter(
-              child: _buildGridMenu(context, ref, isDark)
-                  .animate()
-                  .fadeIn(duration: 600.ms)
-                  .slideY(begin: -0.1, end: 0, curve: Curves.easeOutCubic),
+              child: _buildGridMenu(context, ref, isDark),
             ),
             // Hadith of the Day (Premium Card)
             SliverToBoxAdapter(
-              child: _buildHadithOfTheDay(context, ref, isDark)
-                  .animate()
-                  .fadeIn(delay: 150.ms, duration: 600.ms)
-                  .scale(
-                    begin: const Offset(0.95, 0.95),
-                    end: const Offset(1, 1),
-                    curve: Curves.easeOutBack,
-                  ),
+              child: _buildHadithOfTheDay(context, ref, isDark),
             ),
             // Stats Dashboard
             SliverToBoxAdapter(
-              child: _buildStatsDashboard(context, ref, isDark)
-                  .animate()
-                  .fadeIn(delay: 300.ms, duration: 600.ms)
-                  .slideX(begin: 0.1, end: 0),
+              child: _buildStatsDashboard(context, ref, isDark),
             ),
             // Search Bar
             SliverToBoxAdapter(
-              child: _buildSearchBar(context, isDark)
-                  .animate()
-                  .fadeIn(delay: 400.ms, duration: 600.ms)
-                  .shimmer(color: Colors.white24),
+              child: _buildSearchBar(context, ref, isDark),
             ),
             chaptersAsync.when(
               loading: () => SliverList(
@@ -257,11 +245,13 @@ class HomeScreen extends ConsumerWidget {
                   delegate: SliverChildBuilderDelegate((context, index) {
                     final chapter = chapters[index];
                     final progress = progressMap[chapter.id];
-                    return _ChapterCard(
-                      chapter: chapter,
-                      index: index,
-                      isDark: isDark,
-                      progress: progress,
+                    return RepaintBoundary(
+                      child: _ChapterCard(
+                        chapter: chapter,
+                        index: index,
+                        isDark: isDark,
+                        progress: progress,
+                      ),
                     );
                   }, childCount: chapters.length),
                 );
@@ -273,7 +263,7 @@ class HomeScreen extends ConsumerWidget {
       ),
       floatingActionButton: _buildResumeButton(context, ref, isDark),
       floatingActionButtonLocation: FloatingActionButtonLocation.centerFloat,
-      bottomNavigationBar: const BannerAdWidget(),
+    ),
     );
   }
 
@@ -595,7 +585,7 @@ class HomeScreen extends ConsumerWidget {
             scrollDirection: Axis.horizontal,
             physics: const BouncingScrollPhysics(),
             itemCount: books.length + 1,
-            separatorBuilder: (_, __) => const SizedBox(width: 8),
+            separatorBuilder: (_, index) => const SizedBox(width: 8),
             itemBuilder: (context, index) {
               if (index == 0) {
                 return ActionChip(
@@ -677,31 +667,34 @@ class HomeScreen extends ConsumerWidget {
         Icons.search_rounded,
         const Color(0xFFE91E63),
         'Search',
-        () => context.go('/home/search'),
+        () {
+          final currentBookId = ref.read(selectedBookIdProvider);
+          context.push('/home/search?bookId=$currentBookId');
+        },
       ),
       _GridItem(
         Icons.bookmark_rounded,
         const Color(0xFFE65100),
         'Bookmarks',
-        () => context.go('/home/bookmarks'),
+        () => context.push('/home/bookmarks'),
       ),
       _GridItem(
         Icons.sticky_note_2_rounded,
         const Color(0xFF2E7D32),
         'Notes',
-        () => context.go('/home/notes'),
+        () => context.push('/home/notes'),
       ),
       _GridItem(
         Icons.folder_rounded,
         const Color(0xFFF9A825),
         'Collections',
-        () => context.go('/home/collections'),
+        () => context.push('/home/collections'),
       ),
       _GridItem(
         Icons.info_rounded,
         const Color(0xFF7B1FA2),
         'About',
-        () => context.go('/home/about'),
+        () => context.push('/home/about'),
       ),
       _GridItem(
         Icons.feedback_rounded,
@@ -711,7 +704,7 @@ class HomeScreen extends ConsumerWidget {
       ),
       _GridItem(Icons.share_rounded, const Color(0xFF0288D1), 'Share App', () {
         Share.share(
-          'Download All Hadith (سب احادیث) — The complete Kutub al-Sittah collection with Urdu, Arabic & English translations.\nhttps://play.google.com/store/apps/details?id=com.allhadith.app',
+          'Download All Hadith (سب احادیث) — The complete Kutub al-Sittah collection with Urdu, Arabic & English translations.\nhttps://play.google.com/store/apps/details?id=com.taha.allhadithshahih',
         );
       }),
     ];
@@ -777,29 +770,54 @@ class HomeScreen extends ConsumerWidget {
   }
 
   // ─── Find Hadith by Number ───
+  // ─── Find Hadith by Number ───
   void _showFindHadithDialog(BuildContext context, WidgetRef ref) {
     final controller = TextEditingController();
+    int? dialogBookId = ref.read(selectedBookIdProvider);
+
     showDialog(
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
         bool isSearching = false;
-        Future<void> doSearch(StateSetter setDialogState) async {
+
+        Future<void> openDirectly(StateSetter setDialogState) async {
           final input = controller.text.trim();
           if (input.isEmpty) return;
           setDialogState(() => isSearching = true);
+
           final repo = ref.read(hadithRepositoryProvider);
-          Hadith? result = await repo.getHadithByNumber(input);
+          final isNum = int.tryParse(input) != null;
+
+          if (!isNum) {
+            // Non-numeric input -> redirect directly to full search screen
+            if (!ctx.mounted) return;
+            Navigator.pop(ctx);
+            if (context.mounted) {
+              final bParam = dialogBookId != null ? '&bookId=$dialogBookId' : '';
+              context.push('/home/search?q=${Uri.encodeComponent(input)}$bParam');
+            }
+            return;
+          }
+
+          // First search within selected book
+          Hadith? result = await repo.getHadithByNumber(input, bookId: dialogBookId);
+          result ??= await repo.getHadithByGlobalNumber(input, bookId: dialogBookId);
+          // Fallback to any book if not found in current book
+          result ??= await repo.getHadithByNumber(input);
           result ??= await repo.getHadithById(int.tryParse(input) ?? -1);
+
           if (!ctx.mounted) return;
           Navigator.pop(ctx);
+
           if (result != null && context.mounted) {
+            await ref.read(selectedBookIdProvider.notifier).selectBook(result.bookId);
             final hIndex = await repo.getHadithIndex(
               result.chapterId,
               result.hadithNumber,
             );
             if (context.mounted) {
-              context.go(
+              context.push(
                 '/home/chapter/${result.chapterId}?startIndex=$hIndex',
               );
             }
@@ -807,14 +825,37 @@ class HomeScreen extends ConsumerWidget {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(
                 content: Text('Hadith #$input not found'),
+                action: SnackBarAction(
+                  label: 'SEARCH',
+                  onPressed: () {
+                    final bParam = dialogBookId != null ? 'bookId=$dialogBookId&' : '';
+                    context.push('/home/search?${bParam}q=${Uri.encodeComponent(input)}');
+                  },
+                ),
                 behavior: SnackBarBehavior.floating,
               ),
             );
           }
         }
 
+        void goToSearchScreen() {
+          final input = controller.text.trim();
+          Navigator.pop(ctx);
+          if (context.mounted) {
+            final bParam = dialogBookId != null ? 'bookId=$dialogBookId' : '';
+            final qParam = input.isNotEmpty ? (bParam.isNotEmpty ? '&q=${Uri.encodeComponent(input)}' : 'q=${Uri.encodeComponent(input)}') : '';
+            final queryStr = (bParam.isNotEmpty || qParam.isNotEmpty) ? '?$bParam$qParam' : '';
+            context.push('/home/search$queryStr');
+          }
+        }
+
         return StatefulBuilder(
           builder: (ctx, setDialogState) {
+            final isDark = Theme.of(ctx).brightness == Brightness.dark;
+            final activeColor = dialogBookId != null
+                ? AppTheme.getBookPrimaryColor(dialogBookId!)
+                : Theme.of(ctx).primaryColor;
+
             return AlertDialog(
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(16),
@@ -823,51 +864,112 @@ class HomeScreen extends ConsumerWidget {
                 children: [
                   Icon(
                     Icons.find_in_page_rounded,
-                    color: Theme.of(ctx).primaryColor,
+                    color: activeColor,
                   ),
                   const SizedBox(width: 8),
                   const Text('Find Hadith'),
                 ],
               ),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    'Hadith number dalein — seedha us hadith par jaayega.',
-                    style: TextStyle(color: Colors.grey, fontSize: 13),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: controller,
-                    keyboardType: TextInputType.number,
-                    autofocus: true,
-                    enabled: !isSearching,
-                    onSubmitted: (_) => doSearch(setDialogState),
-                    decoration: InputDecoration(
-                      hintText: 'e.g. 1, 100, 2000',
-                      prefixIcon: isSearching
-                          ? const Padding(
-                              padding: EdgeInsets.all(12),
-                              child: SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              ),
-                            )
-                          : const Icon(Icons.tag),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Hadith number ya search keyword dalein:',
+                      style: TextStyle(
+                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                        fontSize: 13,
                       ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+
+                    // Quick Book Selector Chips
+                    SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _buildDialogBookChip('All Books', null, dialogBookId, (id) {
+                            setDialogState(() => dialogBookId = id);
+                          }, isDark),
+                          const SizedBox(width: 5),
+                          _buildDialogBookChip('Bukhari', 1, dialogBookId, (id) {
+                            setDialogState(() => dialogBookId = id);
+                          }, isDark),
+                          const SizedBox(width: 5),
+                          _buildDialogBookChip('Muslim', 2, dialogBookId, (id) {
+                            setDialogState(() => dialogBookId = id);
+                          }, isDark),
+                          const SizedBox(width: 5),
+                          _buildDialogBookChip('Abu Dawood', 3, dialogBookId, (id) {
+                            setDialogState(() => dialogBookId = id);
+                          }, isDark),
+                          const SizedBox(width: 5),
+                          _buildDialogBookChip('Tirmidhi', 4, dialogBookId, (id) {
+                            setDialogState(() => dialogBookId = id);
+                          }, isDark),
+                          const SizedBox(width: 5),
+                          _buildDialogBookChip("Nasa'i", 5, dialogBookId, (id) {
+                            setDialogState(() => dialogBookId = id);
+                          }, isDark),
+                          const SizedBox(width: 5),
+                          _buildDialogBookChip('Ibn Majah', 6, dialogBookId, (id) {
+                            setDialogState(() => dialogBookId = id);
+                          }, isDark),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    TextField(
+                      controller: controller,
+                      keyboardType: TextInputType.text,
+                      autofocus: true,
+                      enabled: !isSearching,
+                      onSubmitted: (_) => openDirectly(setDialogState),
+                      decoration: InputDecoration(
+                        hintText: 'Hadith # (e.g. 1, 50, 1234) or keyword',
+                        hintStyle: TextStyle(
+                          fontSize: 13,
+                          color: isDark ? Colors.grey.shade500 : Colors.grey.shade400,
+                        ),
+                        prefixIcon: isSearching
+                            ? const Padding(
+                                padding: EdgeInsets.all(12),
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                ),
+                              )
+                            : Icon(Icons.tag, color: activeColor),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide(color: activeColor, width: 1.5),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
               ),
               actions: [
                 TextButton(
                   onPressed: isSearching ? null : () => Navigator.pop(ctx),
                   child: const Text('CANCEL'),
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.search, size: 16),
+                  label: const Text('SEARCH'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: activeColor,
+                    side: BorderSide(color: activeColor),
+                  ),
+                  onPressed: isSearching ? null : goToSearchScreen,
                 ),
                 FilledButton.icon(
                   icon: isSearching
@@ -879,17 +981,251 @@ class HomeScreen extends ConsumerWidget {
                             color: Colors.white,
                           ),
                         )
-                      : const Icon(Icons.search, size: 18),
-                  label: const Text('GO'),
+                      : const Icon(Icons.arrow_forward, size: 16),
+                  label: const Text('OPEN'),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: activeColor,
+                  ),
                   onPressed: isSearching
                       ? null
-                      : () => doSearch(setDialogState),
+                      : () => openDirectly(setDialogState),
                 ),
               ],
             );
           },
         );
       },
+    );
+  }
+
+  Widget _buildDialogBookChip(
+    String label,
+    int? bookId,
+    int? selectedId,
+    ValueChanged<int?> onSelect,
+    bool isDark,
+  ) {
+    final isSelected = selectedId == bookId;
+    final color = bookId != null
+        ? AppTheme.getBookPrimaryColor(bookId)
+        : const Color(0xFF1565C0);
+
+    return GestureDetector(
+      onTap: () => onSelect(bookId),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? color
+              : (isDark ? Colors.grey.shade800 : Colors.grey.shade200),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected
+                ? color
+                : (isDark ? Colors.grey.shade700 : Colors.grey.shade300),
+            width: 1,
+          ),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+            color: isSelected
+                ? Colors.white
+                : (isDark ? Colors.grey.shade300 : Colors.grey.shade800),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ─── 24-Hour Ad-Free Pass Dialog (Jami` at-Tirmidhi model) ───
+  void _showAdFreePassDialog(BuildContext context, int selectedBookId) {
+    HapticFeedback.lightImpact();
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryColor = AppTheme.getBookPrimaryColor(selectedBookId);
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return ValueListenableBuilder<bool>(
+          valueListenable: AdService.isAdFreeActiveNotifier,
+          builder: (context, isAdFree, _) {
+            final remainingText = AdService.remainingAdFreeTimeFormatted;
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+              contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: (isAdFree ? Colors.green : Colors.amber).withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isAdFree ? Icons.verified_rounded : Icons.workspace_premium_rounded,
+                      color: isAdFree ? Colors.green : Colors.amber.shade700,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      isAdFree ? '24h Ad-Free Active' : 'Remove Ads for 24h',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : AppTheme.textDark,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isAdFree) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.timer_outlined, color: Colors.green, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Pass Active: $remainingText remaining',
+                              style: const TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'All banner ads and transition ads are completely turned off. Enjoy peaceful, distraction-free reading and recitation!',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                        height: 1.4,
+                      ),
+                    ),
+                  ] else ...[
+                    Text(
+                      'Watch 1 sponsor video to completely remove all ads for 24 hours:',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: (isDark ? Colors.grey.shade900 : Colors.grey.shade100),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildAdBenefitRow(Icons.check_circle_rounded, 'No Banner Ads on any screen'),
+                          const SizedBox(height: 6),
+                          _buildAdBenefitRow(Icons.check_circle_rounded, 'No Transition Ads between chapters'),
+                          const SizedBox(height: 6),
+                          _buildAdBenefitRow(Icons.check_circle_rounded, '100% Free & peaceful reading'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogCtx).pop(),
+                  child: Text(
+                    'Close',
+                    style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isAdFree ? Colors.green.shade700 : primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  ),
+                  icon: const Icon(Icons.play_circle_fill_rounded, size: 20),
+                  label: Text(isAdFree ? 'Extend +24h' : 'Watch & Unlock 24h'),
+                  onPressed: () async {
+                    Navigator.of(dialogCtx).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Loading Rewarded Ad... Please wait 💚'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                    await AdService.showVoluntaryRewardedAd(
+                      onUserEarnedReward: () {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('JazakAllah Khair! 24-Hour Ad-Free Reading unlocked! 💚'),
+                              backgroundColor: Colors.green.shade700,
+                              duration: const Duration(seconds: 4),
+                            ),
+                          );
+                        }
+                      },
+                      onAdFailed: () {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Ad could not load right now. Please try again shortly.'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      },
+                    );
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildAdBenefitRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.green, size: 16),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+          ),
+        ),
+      ],
     );
   }
 
@@ -1010,6 +1346,7 @@ class HomeScreen extends ConsumerWidget {
               onTap: () async {
                 final repo = ref.read(hadithRepositoryProvider);
                 final data = await repo.exportUserData();
+                if (!ctx.mounted) return;
                 Navigator.pop(ctx);
                 final text = jsonEncode(data);
                 await Clipboard.setData(ClipboardData(text: text));
@@ -1126,9 +1463,12 @@ class HomeScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildSearchBar(BuildContext context, bool isDark) {
+  Widget _buildSearchBar(BuildContext context, WidgetRef ref, bool isDark) {
     return GestureDetector(
-      onTap: () => context.go('/home/search'),
+      onTap: () {
+        final currentBookId = ref.read(selectedBookIdProvider);
+        context.push('/home/search?bookId=$currentBookId');
+      },
       child: Container(
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -1170,8 +1510,6 @@ class HomeScreen extends ConsumerWidget {
   }
 
   Widget _buildResumeButton(BuildContext context, WidgetRef ref, bool isDark) {
-    final progressAsync = ref.watch(lastProgressProvider);
-
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 60),
       child: Material(
@@ -1181,20 +1519,44 @@ class HomeScreen extends ConsumerWidget {
         shadowColor: Theme.of(context).primaryColor.withValues(alpha: 0.3),
         child: InkWell(
           borderRadius: BorderRadius.circular(30),
-          onTap: () {
-            progressAsync.whenData((progress) {
-              if (progress != null) {
-                context.go(
-                  '/home/chapter/${progress.chapterId}?startIndex=${progress.hadithIndex}',
-                );
-              } else {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Start reading a hadith to enable resume!'),
-                  ),
-                );
-              }
-            });
+          onTap: () async {
+            HapticFeedback.lightImpact();
+            final repo = ref.read(hadithRepositoryProvider);
+            final bookId = ref.read(selectedBookIdProvider);
+
+            // Fetch last reading progress for this specific selected book
+            final progress = await repo.getLastReadingProgress(bookId: bookId);
+
+            // Safe fallback to SharedPreferences for this book
+            final prefs = await SharedPreferences.getInstance();
+            final spChapter = prefs.getInt('last_read_chapter_id_$bookId');
+            final spIndex = prefs.getInt('last_read_hadith_index_$bookId');
+
+            int chapterId;
+            int startIndex;
+
+            if (progress != null) {
+              chapterId = progress.chapterId;
+              startIndex = progress.hadithIndex;
+            } else if (spChapter != null) {
+              chapterId = spChapter;
+              startIndex = spIndex ?? 0;
+            } else {
+              // If user has not read this book yet, get the first chapter of THIS BOOK!
+              final chapters = await repo.getChaptersByBook(bookId);
+              chapterId = chapters.isNotEmpty ? chapters.first.id : 1;
+              startIndex = 0;
+            }
+
+            if (context.mounted) {
+              await context.push(
+                '/home/chapter/$chapterId?startIndex=$startIndex',
+              );
+              // Invalidate progress on return to refresh dashboard/button
+              ref.invalidate(lastProgressProvider);
+              ref.invalidate(chapterProgressProvider);
+              ref.invalidate(statsProvider);
+            }
           },
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -1250,7 +1612,9 @@ class _ChapterCard extends ConsumerWidget {
     final settings = ref.watch(settingsProvider);
 
     return GestureDetector(
-          onTap: () => context.go('/home/chapterList/${chapter.id}'),
+          onTap: () {
+            context.push('/home/chapterList/${chapter.id}');
+          },
           child: Container(
             margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
@@ -1310,7 +1674,7 @@ class _ChapterCard extends ConsumerWidget {
                     SizedBox(
                       width: 24,
                       child: Text(
-                        '${chapter.id}',
+                        '${chapter.bookNumber}',
                         textAlign: TextAlign.right,
                         style: TextStyle(
                           color: Theme.of(context).primaryColor,

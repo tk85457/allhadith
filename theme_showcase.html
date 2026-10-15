@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>All Hadith — 4 Unique Theme Color Previews</title>
+  <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Outfit:wght@400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0B0F17;
+      --card-bg: #151C28;
+      --text: #F1F5F9;
+      --subtext: #94A3B8;
+      --border: rgba(255, 255, 255, 0.08);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Outfit', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 32px 20px;
+      min-height: 100vh;
+    }
+    .header {
+      text-align: center;
+      max-width: 800px;
+      margin: 0 auto 40px;
+    }
+    .header h1 {
+      font-size: 32px;
+      font-weight: 700;
+      background: linear-gradient(135deg, #F59E0B, #10B981, #38BDF8);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 8px;
+    }
+    .header p {
+      color: var(--subtext);
+      font-size: 16px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 28px;
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+    .theme-card {
+      background: var(--card-bg);
+      border-radius: 24px;
+      border: 1px solid var(--border);
+      overflow: hidden;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.4);
+      transition: transform 0.25s ease, box-shadow 0.25s ease;
+      display: flex;
+      flex-direction: column;
+    }
+    .theme-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 24px 50px rgba(0,0,0,0.6);
+    }
+    .card-top {
+      padding: 20px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .badge {
+      font-size: 12px;
+      font-weight: 600;
+      padding: 4px 12px;
+      border-radius: 20px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    .swatches {
+      display: flex;
+      gap: 8px;
+    }
+    .swatch {
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      border: 2px solid rgba(255,255,255,0.2);
+    }
+
+    /* Mobile Screen Mockup Inside Card */
+    .screen-mockup {
+      margin: 0 20px 20px;
+      border-radius: 22px;
+      overflow: hidden;
+      border: 2px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    }
+    .mockup-appbar {
+      padding: 16px 18px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: #fff;
+    }
+    .mockup-appbar .title {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+    .mockup-appbar .arabic-sub {
+      font-family: 'Amiri', serif;
+      font-size: 15px;
+      opacity: 0.9;
+    }
+    .mockup-body {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .mockup-hero {
+      padding: 16px;
+      border-radius: 16px;
+      color: #fff;
+      position: relative;
+      overflow: hidden;
+    }
+    .mockup-hero .tag {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      display: inline-block;
+    }
+    .mockup-hero .arabic-text {
+      font-family: 'Amiri', serif;
+      font-size: 18px;
+      line-height: 1.6;
+      text-align: right;
+      direction: rtl;
+      margin-bottom: 8px;
+    }
+    .mockup-hero .urdu-text {
+      font-family: 'Noto Nastaliq Urdu', serif;
+      font-size: 13px;
+      line-height: 1.7;
+      text-align: right;
+      direction: rtl;
+      opacity: 0.95;
+    }
+    .mockup-item {
+      padding: 14px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .mockup-item .info {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .mockup-item .item-title {
+      font-size: 14px;
+      font-weight: 600;
+    }
+    .mockup-item .item-sub {
+      font-size: 11px;
+      opacity: 0.7;
+    }
+    .grade-chip {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 4px 10px;
+      border-radius: 8px;
+    }
+
+    /* THEME 1: Warm Terracotta & Dune */
+    .t1-bar { background: linear-gradient(135deg, #C25834, #A34324); }
+    .t1-body { background: #18100E; }
+    .t1-hero { background: linear-gradient(135deg, #C25834, #00796B); border: 1px solid #E4B98C; }
+    .t1-hero .tag { color: #F59E0B; }
+    .t1-item { background: #281A16; border: 1px solid rgba(212, 175, 55, 0.2); }
+    .t1-grade { background: rgba(212, 175, 55, 0.2); color: #F59E0B; border: 1px solid #E4B98C; }
+    .t1-badge { background: rgba(212, 175, 55, 0.2); color: #F59E0B; border: 1px solid #E4B98C; }
+
+    /* THEME 2: Andalusian Maroon */
+    .t2-bar { background: linear-gradient(135deg, #5A1320, #7B182B); }
+    .t2-body { background: #18090C; }
+    .t2-hero { background: linear-gradient(135deg, #5A1320, #8A1C30); border: 1px solid #E6A15C; }
+    .t2-hero .tag { color: #FBBF24; }
+    .t2-item { background: #261014; border: 1px solid rgba(230, 161, 92, 0.25); }
+    .t2-grade { background: rgba(230, 161, 92, 0.2); color: #FBBF24; border: 1px solid #E6A15C; }
+    .t2-badge { background: rgba(230, 161, 92, 0.2); color: #FBBF24; border: 1px solid #E6A15C; }
+
+    /* THEME 3: Midnight Sapphire */
+    .t3-bar { background: linear-gradient(135deg, #0A192F, #1E3A8A); }
+    .t3-body { background: #070F1D; }
+    .t3-hero { background: linear-gradient(135deg, #0E2442, #1E40AF); border: 1px solid #38BDF8; }
+    .t3-hero .tag { color: #38BDF8; }
+    .t3-item { background: #0F1F38; border: 1px solid rgba(56, 189, 248, 0.2); }
+    .t3-grade { background: rgba(56, 189, 248, 0.2); color: #38BDF8; border: 1px solid #38BDF8; }
+    .t3-badge { background: rgba(56, 189, 248, 0.2); color: #38BDF8; border: 1px solid #38BDF8; }
+
+    /* THEME 4: Byzantine Plum */
+    .t4-bar { background: linear-gradient(135deg, #3B1C32, #581C87); }
+    .t4-body { background: #140817; }
+    .t4-hero { background: linear-gradient(135deg, #3B1C32, #6B21A8); border: 1px solid #F472B6; }
+    .t4-hero .tag { color: #F472B6; }
+    .t4-item { background: #240E2A; border: 1px solid rgba(244, 114, 182, 0.2); }
+    .t4-grade { background: rgba(244, 114, 182, 0.2); color: #F472B6; border: 1px solid #F472B6; }
+    .t4-badge { background: rgba(244, 114, 182, 0.2); color: #F472B6; border: 1px solid #F472B6; }
+
+    .card-footer {
+      padding: 16px 20px 24px;
+      border-top: 1px solid var(--border);
+    }
+    .card-footer h3 {
+      font-size: 18px;
+      font-weight: 700;
+      margin-bottom: 6px;
+    }
+    .card-footer p {
+      font-size: 13px;
+      color: var(--subtext);
+      line-height: 1.5;
+      margin-bottom: 12px;
+    }
+    .palette-codes {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .code-chip {
+      font-size: 11px;
+      font-family: monospace;
+      background: rgba(255,255,255,0.06);
+      padding: 3px 8px;
+      border-radius: 6px;
+      color: #CBD5E1;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h1>All Hadith — 4 Unique Theme Palettes</h1>
+    <p>Aapke liye 4 ultra-unique luxury themes banaye gaye hain. Har theme ka real mobile layout neeche dekhein:</p>
+  </div>
+
+  <div class="grid">
+
+    <!-- THEME 1: Warm Terracotta & Dune -->
+    <div class="theme-card">
+      <div class="card-top">
+        <span class="badge t1-badge">🌟 RECOMMENDED</span>
+        <div class="swatches">
+          <div class="swatch" style="background:#C25834;"></div>
+          <div class="swatch" style="background:#00796B;"></div>
+          <div class="swatch" style="background:#E4B98C;"></div>
+        </div>
+      </div>
+      <div class="screen-mockup">
+        <div class="mockup-appbar t1-bar">
+          <span class="title">All Hadith • سب احادیث</span>
+          <span class="arabic-sub">کتب صحاح ستہ</span>
+        </div>
+        <div class="mockup-body t1-body">
+          <div class="mockup-hero t1-hero">
+            <span class="tag">Hadith of the Day • حدیث الیوم</span>
+            <div class="arabic-text">إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ</div>
+            <div class="urdu-text">اعمال کا دارومدار نیتوں پر ہے۔</div>
+          </div>
+          <div class="mockup-item t1-item">
+            <div class="info">
+              <span class="item-title">Jami` at-Tirmidhi</span>
+              <span class="item-sub">Hadith #1 • Book of Purification</span>
+            </div>
+            <span class="grade-chip t1-grade">صحیح • Sahih</span>
+          </div>
+          <div class="mockup-item t1-item">
+            <div class="info">
+              <span class="item-title">Sunan Abu Dawood</span>
+              <span class="item-sub">Hadith #24 • Book of Prayer</span>
+            </div>
+            <span class="grade-chip t1-grade">حسن • Hasan</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <h3>1. Warm Terracotta & Dune & Antique Gold</h3>
+        <p>Historic Isfahan mosque & ancient Quranic manuscript dome aesthetic. Purity, deep spirituality aur luxury gold filigree.</p>
+        <div class="palette-codes">
+          <span class="code-chip">Primary: #C25834</span>
+          <span class="code-chip">Accent: #E4B98C</span>
+          <span class="code-chip">Surface: #18100E</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- THEME 2: Andalusian Maroon -->
+    <div class="theme-card">
+      <div class="card-top">
+        <span class="badge t2-badge">REGAL VINTAGE</span>
+        <div class="swatches">
+          <div class="swatch" style="background:#5A1320;"></div>
+          <div class="swatch" style="background:#7B182B;"></div>
+          <div class="swatch" style="background:#E6A15C;"></div>
+        </div>
+      </div>
+      <div class="screen-mockup">
+        <div class="mockup-appbar t2-bar">
+          <span class="title">All Hadith • سب احادیث</span>
+          <span class="arabic-sub">کتب صحاح ستہ</span>
+        </div>
+        <div class="mockup-body t2-body">
+          <div class="mockup-hero t2-hero">
+            <span class="tag">Hadith of the Day • حدیث الیوم</span>
+            <div class="arabic-text">إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ</div>
+            <div class="urdu-text">اعمال کا دارومدار نیتوں پر ہے۔</div>
+          </div>
+          <div class="mockup-item t2-item">
+            <div class="info">
+              <span class="item-title">Jami` at-Tirmidhi</span>
+              <span class="item-sub">Hadith #1 • Book of Purification</span>
+            </div>
+            <span class="grade-chip t2-grade">صحیح • Sahih</span>
+          </div>
+          <div class="mockup-item t2-item">
+            <div class="info">
+              <span class="item-title">Sunan Ibn Majah</span>
+              <span class="item-sub">Hadith #45 • Book of Sunnah</span>
+            </div>
+            <span class="grade-chip t2-grade">ضعیف • Da'if</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <h3>2. Imperial Andalusian Maroon & Amber</h3>
+        <p>Alhambra Cordoba & traditional leather-bound Hadith book style. Warm amber accents with deep wine crimson.</p>
+        <div class="palette-codes">
+          <span class="code-chip">Primary: #5A1320</span>
+          <span class="code-chip">Amber: #E6A15C</span>
+          <span class="code-chip">Dark: #18090C</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- THEME 3: Midnight Sapphire -->
+    <div class="theme-card">
+      <div class="card-top">
+        <span class="badge t3-badge">CELESTIAL NIGHT</span>
+        <div class="swatches">
+          <div class="swatch" style="background:#0A192F;"></div>
+          <div class="swatch" style="background:#1E3A8A;"></div>
+          <div class="swatch" style="background:#38BDF8;"></div>
+        </div>
+      </div>
+      <div class="screen-mockup">
+        <div class="mockup-appbar t3-bar">
+          <span class="title">All Hadith • سب احادیث</span>
+          <span class="arabic-sub">کتب صحاح ستہ</span>
+        </div>
+        <div class="mockup-body t3-body">
+          <div class="mockup-hero t3-hero">
+            <span class="tag">Hadith of the Day • حدیث الیوم</span>
+            <div class="arabic-text">إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ</div>
+            <div class="urdu-text">اعمال کا دارومدار نیتوں پر ہے۔</div>
+          </div>
+          <div class="mockup-item t3-item">
+            <div class="info">
+              <span class="item-title">Sunan an-Nasa'i</span>
+              <span class="item-sub">Hadith #12 • Book of Taharah</span>
+            </div>
+            <span class="grade-chip t3-grade">صحیح • Sahih</span>
+          </div>
+          <div class="mockup-item t3-item">
+            <div class="info">
+              <span class="item-title">Sunan Abu Dawood</span>
+              <span class="item-sub">Hadith #88 • Book of Wudu</span>
+            </div>
+            <span class="grade-chip t3-grade">حسن • Hasan</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <h3>3. Midnight Sapphire & Celestial Cyan</h3>
+        <p>Laylatul Qadr nocturnal aesthetic. Serene midnight lapis with radiant cyan luminescence and high-contrast readability.</p>
+        <div class="palette-codes">
+          <span class="code-chip">Primary: #0A192F</span>
+          <span class="code-chip">Lapis: #1E3A8A</span>
+          <span class="code-chip">Cyan: #38BDF8</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- THEME 4: Byzantine Plum -->
+    <div class="theme-card">
+      <div class="card-top">
+        <span class="badge t4-badge">ULTRA UNIQUE</span>
+        <div class="swatches">
+          <div class="swatch" style="background:#3B1C32;"></div>
+          <div class="swatch" style="background:#581C87;"></div>
+          <div class="swatch" style="background:#F472B6;"></div>
+        </div>
+      </div>
+      <div class="screen-mockup">
+        <div class="mockup-appbar t4-bar">
+          <span class="title">All Hadith • سب احادیث</span>
+          <span class="arabic-sub">کتب صحاح ستہ</span>
+        </div>
+        <div class="mockup-body t4-body">
+          <div class="mockup-hero t4-hero">
+            <span class="tag">Hadith of the Day • حدیث الیوم</span>
+            <div class="arabic-text">إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ</div>
+            <div class="urdu-text">اعمال کا دارومدار نیتوں پر ہے۔</div>
+          </div>
+          <div class="mockup-item t4-item">
+            <div class="info">
+              <span class="item-title">Jami` at-Tirmidhi</span>
+              <span class="item-sub">Hadith #1 • Book of Purification</span>
+            </div>
+            <span class="grade-chip t4-grade">صحیح • Sahih</span>
+          </div>
+          <div class="mockup-item t4-item">
+            <div class="info">
+              <span class="item-title">Sunan Ibn Majah</span>
+              <span class="item-sub">Hadith #300 • Book of Sunnah</span>
+            </div>
+            <span class="grade-chip t4-grade">حسن صحيح • Hasan Sahih</span>
+          </div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <h3>4. Mystic Byzantine Plum & Rose Gold</h3>
+        <p>Rare imperial spiritual luxury. Deep aubergine velvet with rose gold highlights and modern high-end feel.</p>
+        <div class="palette-codes">
+          <span class="code-chip">Primary: #3B1C32</span>
+          <span class="code-chip">Purple: #581C87</span>
+          <span class="code-chip">Rose: #F472B6</span>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+</body>
+</html>

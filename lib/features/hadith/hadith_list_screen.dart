@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../theme/app_theme.dart';
 import '../../data/repositories/hadith_repository.dart';
 import '../../domain/models/models.dart';
 import '../settings/settings_provider.dart';
-import '../../widgets/banner_ad_widget.dart';
+import '../books/book_provider.dart';
+import '../common/widgets/hadith_grade_badge.dart';
 
 final chapterHadithsListProvider = FutureProvider.family<List<Hadith>, int>((ref, chapterId) async {
   final repo = ref.watch(hadithRepositoryProvider);
@@ -73,7 +73,13 @@ class HadithListScreen extends ConsumerWidget {
                     textAlign: TextAlign.right,
                     textDirection: TextDirection.rtl,
                     onSubmitted: (query) {
-                        context.push('/home/search');
+                      final bId = chapterAsync.value?.bookId ?? ref.read(selectedBookIdProvider);
+                      final q = query.trim();
+                      if (q.isNotEmpty) {
+                        context.push('/home/search?bookId=$bId&q=${Uri.encodeComponent(q)}');
+                      } else {
+                        context.push('/home/search?bookId=$bId');
+                      }
                     },
                     decoration: InputDecoration(
                       hintText: 'حدیث نمبر یا عنوان کے ذریعے تلاش کریں',
@@ -82,7 +88,13 @@ class HadithListScreen extends ConsumerWidget {
                     ),
                   ),
                 ),
-                const Icon(Icons.search, color: Colors.blue),
+                IconButton(
+                  icon: const Icon(Icons.search, color: Colors.blue),
+                  onPressed: () {
+                    final bId = chapterAsync.value?.bookId ?? ref.read(selectedBookIdProvider);
+                    context.push('/home/search?bookId=$bId');
+                  },
+                ),
               ],
             ),
           ),
@@ -101,7 +113,8 @@ class HadithListScreen extends ConsumerWidget {
                   itemBuilder: (context, index) {
                     final hadith = hadiths[index];
 
-                    return GestureDetector(
+                    return RepaintBoundary(
+                      child: GestureDetector(
                       onTap: () {
                         context.push('/home/chapter/$chapterId?startIndex=$index');
                       },
@@ -131,24 +144,34 @@ class HadithListScreen extends ConsumerWidget {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.stretch,
                                 children: [
-                                  Text(
-                                    settings.titleLanguage == 'English'
-                                        ? (chapterAsync.value?.titleEnglish ?? 'Chapter')
-                                        : settings.titleLanguage == 'Arabic'
-                                            ? (chapterAsync.value?.titleArabic ?? 'باب')
-                                            : (chapterAsync.value?.titleUrdu ?? 'باب'),
-                                    textAlign: settings.titleLanguage == 'English' ? TextAlign.left : TextAlign.right,
-                                    textDirection: settings.titleLanguage == 'English' ? TextDirection.ltr : TextDirection.rtl,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: AppTheme.safeGetFont(
-                                      settings.activeFontFamily,
-                                      color: Theme.of(context).primaryColor,
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.bold,
-                                      height: 2.0,
-                                      wordSpacing: 2.0,
-                                    ),
+                                  Row(
+                                    textDirection: TextDirection.rtl,
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Expanded(
+                                        child: Text(
+                                          settings.titleLanguage == 'English'
+                                              ? (chapterAsync.value?.titleEnglish ?? 'Chapter')
+                                              : settings.titleLanguage == 'Arabic'
+                                                  ? (chapterAsync.value?.titleArabic ?? 'باب')
+                                                  : (chapterAsync.value?.titleUrdu ?? 'باب'),
+                                          textAlign: settings.titleLanguage == 'English' ? TextAlign.left : TextAlign.right,
+                                          textDirection: settings.titleLanguage == 'English' ? TextDirection.ltr : TextDirection.rtl,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: AppTheme.safeGetFont(
+                                            settings.activeFontFamily,
+                                            color: Theme.of(context).primaryColor,
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.bold,
+                                            height: 2.0,
+                                            wordSpacing: 2.0,
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      HadithGradeBadge(hadith: hadith),
+                                    ],
                                   ),
                                   const SizedBox(height: 4),
                                   Text(
@@ -171,17 +194,15 @@ class HadithListScreen extends ConsumerWidget {
                           ],
                         ),
                       ),
-                    ).animate()
-                     .fade(duration: 400.ms)
-                     .slideY(begin: 0.1, end: 0, curve: Curves.easeOut, delay: (index % 10 * 50).ms);
-                  },
+                    ),
+                  );
+                },
                 );
               },
             ),
           ),
         ],
       ),
-      bottomNavigationBar: const BannerAdWidget(),
     );
   }
 }

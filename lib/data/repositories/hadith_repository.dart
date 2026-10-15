@@ -120,16 +120,43 @@ class HadithRepository {
     return Hadith.fromMap(result.first);
   }
 
-  Future<Hadith?> getHadithByNumber(String hadithNumber) async {
+  Future<Hadith?> getHadithByNumber(String hadithNumber, {int? bookId}) async {
     final db = await _db.database;
+    final where = bookId != null ? 'hadith_number = ? AND book_id = ?' : 'hadith_number = ?';
+    final whereArgs = bookId != null ? [hadithNumber, bookId] : [hadithNumber];
     final result = await db.query(
       'hadiths',
-      where: 'hadith_number = ?',
-      whereArgs: [hadithNumber],
+      where: where,
+      whereArgs: whereArgs,
+      orderBy: 'is_primary DESC, id ASC',
       limit: 1,
     );
     if (result.isEmpty) return null;
     return Hadith.fromMap(result.first);
+  }
+
+  Future<List<Hadith>> searchHadithsByNumber(
+    String number, {
+    int? bookId,
+    bool onlyPrimary = false,
+  }) async {
+    final db = await _db.database;
+    final conditions = <String>['hadith_number = ?'];
+    final whereArgs = <dynamic>[number];
+    if (bookId != null && bookId > 0) {
+      conditions.add('book_id = ?');
+      whereArgs.add(bookId);
+    }
+    if (onlyPrimary) {
+      conditions.add('is_primary = 1');
+    }
+    final result = await db.query(
+      'hadiths',
+      where: conditions.join(' AND '),
+      whereArgs: whereArgs,
+      orderBy: 'book_id ASC, is_primary DESC, id ASC',
+    );
+    return result.map((r) => Hadith.fromMap(r)).toList();
   }
 
   // FIX: Merged duplicate getHadithIndexWithinChapter and getHadithIndex into one
@@ -142,7 +169,7 @@ class HadithRepository {
   Future<int> getHadithIndex(int chapterId, String hadithNumber) async {
     final db = await _db.database;
     final result = await db.rawQuery(
-      'SELECT COUNT(*) as c FROM hadiths WHERE chapter_id = ? AND is_primary = 1 AND id < (SELECT id FROM hadiths WHERE chapter_id = ? AND hadith_number = ? LIMIT 1)',
+      'SELECT COUNT(*) as c FROM hadiths WHERE chapter_id = ? AND is_primary = 1 AND id < (SELECT id FROM hadiths WHERE chapter_id = ? AND hadith_number = ? ORDER BY is_primary DESC, id ASC LIMIT 1)',
       [chapterId, chapterId, hadithNumber],
     );
     return result.first['c'] as int;
@@ -164,10 +191,37 @@ class HadithRepository {
       'hadiths',
       where: where,
       whereArgs: whereArgs,
+      orderBy: 'is_primary DESC, id ASC',
       limit: 1,
     );
     if (result.isEmpty) return null;
     return Hadith.fromMap(result.first);
+  }
+
+  static String _buildArabicSearchPattern(String input, {bool exactMatch = false}) {
+    // Strip Arabic diacritics / tashkeel
+    final clean = input.replaceAll(RegExp(r'[\u064B-\u065F\u0670\u0640]'), '').trim();
+    if (clean.isEmpty) return '%';
+    final buffer = StringBuffer(exactMatch ? '' : '%');
+    for (int i = 0; i < clean.length; i++) {
+      final char = clean[i];
+      if (char == ' ') {
+        buffer.write(exactMatch ? ' ' : '%');
+      } else if ('أإآٱا'.contains(char)) {
+        buffer.write('_%'); // matches any alef variant + possible tashkeel
+      } else if ('ةه'.contains(char)) {
+        buffer.write('_%'); // matches taa marbuta or haa + possible tashkeel
+      } else if ('يى'.contains(char)) {
+        buffer.write('_%'); // matches yaa or alif maqsura + possible tashkeel
+      } else {
+        buffer.write('$char%');
+      }
+    }
+    return buffer.toString();
+  }
+
+  static bool _hasArabicCharacters(String input) {
+    return RegExp(r'[\u0600-\u06FF]').hasMatch(input);
   }
 
   // --- Search (Fast Direct SQLite with Book & Language Filters) ---
@@ -196,18 +250,27 @@ class HadithRepository {
     final cleanQuery = query.trim();
     if (cleanQuery.isNotEmpty) {
       final pattern = exactMatch ? cleanQuery : '%$cleanQuery%';
-      if (language == 'English') {
+      final isAr = language == 'Arabic';
+      final isEn = language == 'English';
+      final isUr = language == 'Urdu' || language == 'Urdu Translation';
+
+      if (isEn) {
         conditions.add('(english_text LIKE ? OR hadith_number = ?)');
         args.addAll([pattern, cleanQuery]);
-      } else if (language == 'Urdu' || language == 'Urdu Translation') {
+      } else if (isUr) {
         conditions.add('(urdu_text LIKE ? OR hadith_number = ?)');
         args.addAll([pattern, cleanQuery]);
-      } else if (language == 'Arabic') {
+      } else if (isAr) {
+        final arPattern = _buildArabicSearchPattern(cleanQuery, exactMatch: exactMatch);
         conditions.add('(arabic_text LIKE ? OR hadith_number = ?)');
-        args.addAll([pattern, cleanQuery]);
+        args.addAll([arPattern, cleanQuery]);
       } else {
+        // 'All Languages' or 'both' or 'Topic'
+        final arPattern = _hasArabicCharacters(cleanQuery)
+            ? _buildArabicSearchPattern(cleanQuery, exactMatch: exactMatch)
+            : pattern;
         conditions.add('(urdu_text LIKE ? OR english_text LIKE ? OR arabic_text LIKE ? OR hadith_number = ?)');
-        args.addAll([pattern, pattern, pattern, cleanQuery]);
+        args.addAll([pattern, pattern, arPattern, cleanQuery]);
       }
     }
 
@@ -242,18 +305,26 @@ class HadithRepository {
     final cleanQuery = query.trim();
     if (cleanQuery.isNotEmpty) {
       final pattern = exactMatch ? cleanQuery : '%$cleanQuery%';
-      if (language == 'English') {
+      final isAr = language == 'Arabic';
+      final isEn = language == 'English';
+      final isUr = language == 'Urdu' || language == 'Urdu Translation';
+
+      if (isEn) {
         conditions.add('(english_text LIKE ? OR hadith_number = ?)');
         args.addAll([pattern, cleanQuery]);
-      } else if (language == 'Urdu' || language == 'Urdu Translation') {
+      } else if (isUr) {
         conditions.add('(urdu_text LIKE ? OR hadith_number = ?)');
         args.addAll([pattern, cleanQuery]);
-      } else if (language == 'Arabic') {
+      } else if (isAr) {
+        final arPattern = _buildArabicSearchPattern(cleanQuery, exactMatch: exactMatch);
         conditions.add('(arabic_text LIKE ? OR hadith_number = ?)');
-        args.addAll([pattern, cleanQuery]);
+        args.addAll([arPattern, cleanQuery]);
       } else {
+        final arPattern = _hasArabicCharacters(cleanQuery)
+            ? _buildArabicSearchPattern(cleanQuery, exactMatch: exactMatch)
+            : pattern;
         conditions.add('(urdu_text LIKE ? OR english_text LIKE ? OR arabic_text LIKE ? OR hadith_number = ?)');
-        args.addAll([pattern, pattern, pattern, cleanQuery]);
+        args.addAll([pattern, pattern, arPattern, cleanQuery]);
       }
     }
 

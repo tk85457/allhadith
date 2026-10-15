@@ -1,14 +1,17 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../theme/app_theme.dart';
 import '../../data/database/app_database.dart';
 import '../../core/ads/ad_service.dart';
 import '../../core/services/in_app_review_service.dart';
+import '../../core/services/notification_service.dart';
 
 // Read version from pubspec.yaml at build time
-const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '1.1.3');
+const String appVersion = String.fromEnvironment('APP_VERSION', defaultValue: '1.0.3');
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -63,18 +66,17 @@ class _SplashScreenState extends State<SplashScreen>
       ),
     );
 
-    _glowOpacity = Tween<double>(begin: 0.0, end: 0.25).animate(
+    _glowOpacity = Tween<double>(begin: 0.0, end: 0.35).animate(
       CurvedAnimation(
         parent: _iconController,
         curve: const Interval(0.6, 1.0, curve: Curves.easeInOut),
       ),
     );
 
-    Future.delayed(const Duration(milliseconds: 100), () {
+    Future.delayed(const Duration(milliseconds: 50), () {
       if (mounted) _iconController.forward();
     });
 
-    // FIX: Load DB and prefs in parallel, with a minimum 2s splash wait
     _initAndNavigate();
   }
 
@@ -85,24 +87,20 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _initAndNavigate() async {
-    // Start DB, prefs, and UMP consent flow in parallel — navigate once all are ready
+    // 1. Fire non-critical background services without blocking splash
+    unawaited(AdService.gatherConsentAndInitialize().catchError((e) {
+      debugPrint('AdService init handled: $e');
+      return AdService.canRequestAds;
+    }));
+    NotificationService.initialize();
+    InAppReviewService.recordAppOpen();
+
+    // 2. Load essential local DB and preferences in parallel
     final results = await Future.wait([
-      // Minimum splash duration (2 seconds — for animation)
-      Future.delayed(const Duration(milliseconds: 2000)),
-      // DB warm-up: first query will be fast afterwards
+      // Snappy minimum splash duration (600ms) for clean branding transition
+      Future.delayed(const Duration(milliseconds: 600)),
       AppDatabase.instance.database,
-      // Load SharedPrefs in parallel as well
       SharedPreferences.getInstance(),
-      // Google official UMP consent flow: requestConsentInfoUpdate -> loadAndShowConsentFormIfRequired -> canRequestAds
-      AdService.gatherConsentAndInitialize().timeout(
-        const Duration(seconds: 10),
-        onTimeout: () {
-          debugPrint('AdService.gatherConsentAndInitialize timed out on splash.');
-          return AdService.canRequestAds;
-        },
-      ),
-      // Record app launch count for In-App Review (Rule: never on 1st open)
-      InAppReviewService.recordAppOpen(),
     ]);
 
     if (!mounted) return;
@@ -123,10 +121,11 @@ class _SplashScreenState extends State<SplashScreen>
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color(0xFF0A7E47),
-              Color(0xFF0F9D58),
-              Color(0xFF14B866),
+              AppTheme.terracottaDark,
+              AppTheme.terracottaPrimary,
+              AppTheme.terracottaLight,
             ],
+            stops: [0.0, 0.55, 1.0],
           ),
         ),
         child: SafeArea(
@@ -136,113 +135,114 @@ class _SplashScreenState extends State<SplashScreen>
               children: [
                 const SizedBox(height: 60),
 
-                // Animated Icon
-                AnimatedBuilder(
-                  animation: _iconController,
-                  builder: (context, child) {
-                    final yOffset = (1.0 - _iconScale.value) * -100;
-                    return Opacity(
-                      opacity: _iconOpacity.value,
-                      child: Transform.translate(
-                        offset: Offset(0, yOffset),
-                        child: Transform.scale(
-                          scale: _iconScale.value,
-                          child: Container(
-                            width: 170,
-                            height: 170,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.white.withValues(
-                                    alpha: _glowOpacity.value,
+                // Animated Icon with isolated RepaintBoundary
+                RepaintBoundary(
+                  child: AnimatedBuilder(
+                    animation: _iconController,
+                    builder: (context, child) {
+                      final yOffset = (1.0 - _iconScale.value) * -100;
+                      return Opacity(
+                        opacity: _iconOpacity.value,
+                        child: Transform.translate(
+                          offset: Offset(0, yOffset),
+                          child: Transform.scale(
+                            scale: _iconScale.value,
+                            child: Container(
+                              width: 170,
+                              height: 170,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: AppTheme.desertDuneGold.withValues(
+                                      alpha: _glowOpacity.value,
+                                    ),
+                                    blurRadius: 16,
+                                    spreadRadius: 2,
                                   ),
-                                  blurRadius: 30,
-                                  spreadRadius: 10,
-                                ),
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.2),
-                                  blurRadius: 15,
-                                  offset: const Offset(0, 8),
-                                ),
-                              ],
-                            ),
-                            child: Stack(
-                              alignment: Alignment.center,
-                              children: [
-                                if (_circleScale.value > 0.1)
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.25),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 6),
+                                  ),
+                                ],
+                              ),
+                              child: Stack(
+                                alignment: Alignment.center,
+                                children: [
+                                  if (_circleScale.value > 0.1)
+                                    Opacity(
+                                      opacity: (_circleOpacity.value * 0.4).clamp(0.0, 1.0),
+                                      child: Container(
+                                        width: 170,
+                                        height: 170,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          border: Border.all(
+                                            color: AppTheme.desertDuneGold,
+                                            width: 1.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+
+                                  Opacity(
+                                    opacity: _circleOpacity.value,
+                                    child: Transform.scale(
+                                      scale: _circleScale.value,
+                                      child: Container(
+                                        width: 165,
+                                        height: 165,
+                                        decoration: BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          gradient: RadialGradient(
+                                            colors: [
+                                              AppTheme.desertDuneGold.withValues(alpha: 0.2),
+                                              Colors.transparent,
+                                            ],
+                                          ),
+                                          border: Border.all(
+                                            color: AppTheme.desertDuneGold.withValues(
+                                              alpha: 0.4,
+                                            ),
+                                            width: 2.5,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
                                   Container(
-                                    width: 170,
-                                    height: 170,
+                                    width: 155,
+                                    height: 155,
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.white.withValues(
-                                          alpha: 0.2 * _circleOpacity.value,
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: AppTheme.desertDuneGold.withValues(alpha: 0.25),
+                                          blurRadius: 12,
+                                          spreadRadius: 1,
                                         ),
-                                        width: 2,
-                                      ),
+                                      ],
                                     ),
-                                  )
-                                      .animate(
-                                        onPlay: (c) => c.repeat(),
-                                      )
-                                      .scale(
-                                        duration: 2.seconds,
-                                        begin: const Offset(1, 1),
-                                        end: const Offset(1.2, 1.2),
-                                      )
-                                      .fadeOut(duration: 2.seconds),
-
-                                Opacity(
-                                  opacity: _circleOpacity.value,
-                                  child: Transform.scale(
-                                    scale: _circleScale.value,
-                                    child: Container(
-                                      width: 165,
-                                      height: 165,
-                                      decoration: BoxDecoration(
-                                        shape: BoxShape.circle,
-                                        gradient: RadialGradient(
-                                          colors: [
-                                            Colors.white.withValues(alpha: 0.2),
-                                            Colors.transparent,
-                                          ],
-                                        ),
-                                        border: Border.all(
-                                          color: Colors.white.withValues(
-                                            alpha: 0.4,
-                                          ),
-                                          width: 4,
-                                        ),
+                                    child: ClipOval(
+                                      child: Image.asset(
+                                        'assets/icon/icon_circular.png',
+                                        width: 155,
+                                        height: 155,
+                                        cacheWidth: 310,
+                                        cacheHeight: 310,
+                                        fit: BoxFit.cover,
                                       ),
                                     ),
                                   ),
-                                ),
-                                Container(
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: Colors.white,
-                                      width: 2,
-                                    ),
-                                  ),
-                                  child: ClipOval(
-                                    child: Image.asset(
-                                      'assets/icon/icon_circular.png',
-                                      width: 150,
-                                      height: 150,
-                                      fit: BoxFit.cover,
-                                    ),
-                                  ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    );
-                  },
+                      );
+                    },
+                  ),
                 ),
 
                 const SizedBox(height: 32),
@@ -250,9 +250,9 @@ class _SplashScreenState extends State<SplashScreen>
                 Text(
                   'بِسْمِ اللَّهِ الرَّحْمَٰنِ الرَّحِيمِ',
                   style: GoogleFonts.amiri(
-                    fontSize: 22,
-                    color: Colors.white.withValues(alpha: 0.9),
-                    fontWeight: FontWeight.w400,
+                    fontSize: 24,
+                    color: AppTheme.desertDuneGold,
+                    fontWeight: FontWeight.bold,
                   ),
                   textDirection: TextDirection.rtl,
                 )
@@ -268,6 +268,13 @@ class _SplashScreenState extends State<SplashScreen>
                     fontSize: 34,
                     color: Colors.white,
                     fontWeight: FontWeight.bold,
+                    shadows: const [
+                      Shadow(
+                        color: Colors.black45,
+                        offset: Offset(0, 2),
+                        blurRadius: 6,
+                      ),
+                    ],
                   ),
                   textDirection: TextDirection.rtl,
                 )
@@ -281,7 +288,7 @@ class _SplashScreenState extends State<SplashScreen>
                   'All Hadith — Kutub al-Sittah',
                   style: GoogleFonts.rubik(
                     fontSize: 18,
-                    color: Colors.white.withValues(alpha: 0.9),
+                    color: AppTheme.desertDuneGold,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 1.5,
                   ),
@@ -296,7 +303,7 @@ class _SplashScreenState extends State<SplashScreen>
                   'The 6 Canonical Collections of Hadith',
                   style: GoogleFonts.rubik(
                     fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.7),
+                    color: Colors.white.withValues(alpha: 0.8),
                     letterSpacing: 1,
                   ),
                 ).animate().fade(delay: 1200.ms, duration: 500.ms),
@@ -307,8 +314,8 @@ class _SplashScreenState extends State<SplashScreen>
                   width: 180,
                   child: LinearProgressIndicator(
                     backgroundColor: Colors.white.withValues(alpha: 0.15),
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      Colors.white.withValues(alpha: 0.6),
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppTheme.desertDuneGold,
                     ),
                     minHeight: 2.5,
                     borderRadius: BorderRadius.circular(2),
@@ -321,21 +328,11 @@ class _SplashScreenState extends State<SplashScreen>
                   'Loading...',
                   style: GoogleFonts.rubik(
                     fontSize: 12,
-                    color: Colors.white.withValues(alpha: 0.5),
+                    color: AppTheme.desertDuneGold.withValues(alpha: 0.8),
                   ),
                 ).animate().fade(delay: 1500.ms, duration: 400.ms),
 
-                const SizedBox(height: 20),
-
-                Text(
-                  'v$appVersion',
-                  style: GoogleFonts.rubik(
-                    fontSize: 11,
-                    color: Colors.white.withValues(alpha: 0.35),
-                  ),
-                ).animate().fade(delay: 1700.ms, duration: 400.ms),
-
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
               ],
             ),
           ),

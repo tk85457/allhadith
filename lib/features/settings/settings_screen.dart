@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../theme/app_theme.dart';
-import '../../widgets/banner_ad_widget.dart';
 import '../../core/ads/ad_service.dart';
 import '../../core/services/in_app_review_service.dart';
 import 'settings_provider.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
-  const SettingsScreen({super.key});
+  final bool fromBooks;
+
+  const SettingsScreen({super.key, this.fromBooks = false});
 
   @override
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
@@ -44,8 +46,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final notifier = ref.read(settingsProvider.notifier);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      bottomNavigationBar: const BannerAdWidget(),
+    final content = Scaffold(
       appBar: AppBar(
         title: const Text('Settings'),
         centerTitle: true,
@@ -83,7 +84,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 notifier.updateViewType(v!);
               }),
               const SizedBox(height: 12),
-              _buildDropdownRow(isDark, 'UI Color', settings.uiColor, ['Green', 'Blue', 'Purple', 'Orange', 'Dark Brown', 'Dark Blue'], (v) {
+              _buildDropdownRow(isDark, 'UI Color', settings.uiColor, ['Book Theme', 'Green', 'Blue', 'Purple', 'Orange', 'Dark Brown', 'Dark Blue', 'Terracotta'], (v) {
                 notifier.updateUiColor(v!);
               }),
             ]),
@@ -176,6 +177,62 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
             // ─── Support & Feedback Section ───
             _buildSectionCard(isDark, 'Support & Feedback', [
+              ValueListenableBuilder<bool>(
+                valueListenable: AdService.isAdFreeActiveNotifier,
+                builder: (context, isAdFree, _) {
+                  return ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      isAdFree ? Icons.verified_rounded : Icons.workspace_premium_rounded,
+                      color: isAdFree ? Colors.green : Colors.amber,
+                      size: 28,
+                    ),
+                    title: Text(
+                      '24-Hour Ad-Free Reading Pass',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: isDark ? Colors.grey.shade300 : AppTheme.textDark,
+                      ),
+                    ),
+                    subtitle: Text(
+                      isAdFree
+                          ? 'Active (${AdService.remainingAdFreeTimeFormatted} remaining)'
+                          : 'Watch 1 video to remove all ads for 24 hours',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isAdFree
+                            ? Colors.green
+                            : (isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+                      ),
+                    ),
+                    trailing: isAdFree
+                        ? Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.green.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Text(
+                              'ACTIVE',
+                              style: TextStyle(
+                                color: Colors.green,
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          )
+                        : const Icon(Icons.chevron_right, size: 20),
+                    onTap: () {
+                      _showAdFreePassDialog(context, isDark);
+                    },
+                  );
+                },
+              ),
+              Divider(
+                height: 1,
+                color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
+              ),
               ListTile(
                 contentPadding: EdgeInsets.zero,
                 leading: const Icon(
@@ -240,6 +297,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ).animate().fadeIn(duration: 400.ms),
       ),
     );
+
+    if (widget.fromBooks) {
+      final terracottaTheme = isDark
+          ? AppTheme.darkTheme(AppTheme.terracottaPrimary)
+          : AppTheme.lightTheme(AppTheme.terracottaPrimary);
+      return Theme(
+        data: terracottaTheme,
+        child: content,
+      );
+    }
+
+    return content;
   }
 
   Widget _buildSectionCard(bool isDark, String title, List<Widget> children) {
@@ -248,7 +317,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       margin: const EdgeInsets.only(bottom: 16),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isDark ? AppTheme.cardDark : Colors.white,
+        color: isDark ? (Theme.of(context).cardTheme.color ?? AppTheme.cardDark) : Colors.white,
         border: Border.all(color: isDark ? Colors.grey.shade800 : Colors.grey.shade200),
         borderRadius: BorderRadius.circular(12),
       ),
@@ -300,13 +369,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             decoration: BoxDecoration(
               border: Border.all(color: isDark ? Colors.grey.shade700 : Colors.grey.shade300),
               borderRadius: BorderRadius.circular(8),
-              color: isDark ? AppTheme.cardDark : Colors.white,
+              color: isDark ? (Theme.of(context).cardTheme.color ?? AppTheme.cardDark) : Colors.white,
             ),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: value,
                 isExpanded: true,
-                dropdownColor: isDark ? AppTheme.cardDark : Colors.white,
+                dropdownColor: isDark ? (Theme.of(context).cardTheme.color ?? AppTheme.cardDark) : Colors.white,
                 style: TextStyle(
                   fontSize: 14,
                   color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
@@ -344,7 +413,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             decoration: BoxDecoration(
               border: Border.all(color: isDark ? Colors.grey.shade700 : Colors.grey.shade300),
               borderRadius: BorderRadius.circular(8),
-              color: isDark ? AppTheme.cardDark : Colors.white,
+              color: isDark ? (Theme.of(context).cardTheme.color ?? AppTheme.cardDark) : Colors.white,
             ),
             child: Row(
               children: [
@@ -353,7 +422,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(4),
                     child: Icon(Icons.remove, size: 18,
-                      color: value > min ? AppTheme.primaryGreen : Colors.grey),
+                      color: value > min ? Theme.of(context).primaryColor : Colors.grey),
                   ),
                 ),
                 Expanded(
@@ -371,7 +440,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   child: Padding(
                     padding: const EdgeInsets.all(4),
                     child: Icon(Icons.add, size: 18,
-                      color: value < max ? AppTheme.primaryGreen : Colors.grey),
+                      color: value < max ? Theme.of(context).primaryColor : Colors.grey),
                   ),
                 ),
               ],
@@ -381,4 +450,193 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ],
     );
   }
+
+  // ─── 24-Hour Ad-Free Pass Dialog ───
+  void _showAdFreePassDialog(BuildContext context, bool isDark) {
+    HapticFeedback.lightImpact();
+    final primaryColor = Theme.of(context).primaryColor;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return ValueListenableBuilder<bool>(
+          valueListenable: AdService.isAdFreeActiveNotifier,
+          builder: (context, isAdFree, _) {
+            final remainingText = AdService.remainingAdFreeTimeFormatted;
+
+            return AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              backgroundColor: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+              contentPadding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
+              actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: (isAdFree ? Colors.green : Colors.amber).withValues(alpha: 0.15),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isAdFree ? Icons.verified_rounded : Icons.workspace_premium_rounded,
+                      color: isAdFree ? Colors.green : Colors.amber.shade700,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      isAdFree ? '24h Ad-Free Active' : 'Remove Ads for 24h',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: isDark ? Colors.white : AppTheme.textDark,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isAdFree) ...[
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.green.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: Colors.green.withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.timer_outlined, color: Colors.green, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Pass Active: $remainingText remaining',
+                              style: const TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'All banner ads and transition ads are completely turned off. Enjoy peaceful, distraction-free study and recitation!',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                        height: 1.4,
+                      ),
+                    ),
+                  ] else ...[
+                    Text(
+                      'Watch 1 sponsor video to completely remove all ads for 24 hours:',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
+                        height: 1.4,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: (isDark ? Colors.grey.shade900 : Colors.grey.shade100),
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _buildAdBenefitRow(Icons.check_circle_rounded, 'No Banner Ads on any screen'),
+                          const SizedBox(height: 6),
+                          _buildAdBenefitRow(Icons.check_circle_rounded, 'No Transition Ads between chapters'),
+                          const SizedBox(height: 6),
+                          _buildAdBenefitRow(Icons.check_circle_rounded, '100% Free & peaceful reading'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogCtx).pop(),
+                  child: Text(
+                    'Close',
+                    style: TextStyle(color: isDark ? Colors.grey.shade400 : Colors.grey.shade600),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: isAdFree ? Colors.green.shade700 : primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  ),
+                  icon: const Icon(Icons.play_circle_fill_rounded, size: 20),
+                  label: Text(isAdFree ? 'Extend +24h' : 'Watch & Unlock 24h'),
+                  onPressed: () async {
+                    Navigator.of(dialogCtx).pop();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('Loading Rewarded Ad... Please wait 💚'),
+                        duration: Duration(seconds: 2),
+                      ),
+                    );
+                    await AdService.showVoluntaryRewardedAd(
+                      onUserEarnedReward: () {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: const Text('JazakAllah Khair! 24-Hour Ad-Free Reading unlocked! 💚'),
+                              backgroundColor: Colors.green.shade700,
+                              duration: const Duration(seconds: 4),
+                            ),
+                          );
+                        }
+                      },
+                      onAdFailed: () {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('Ad could not load right now. Please try again shortly.'),
+                              duration: Duration(seconds: 2),
+                            ),
+                          );
+                        }
+                      },
+                    );
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildAdBenefitRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, color: Colors.green, size: 16),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500),
+          ),
+        ),
+      ],
+    );
+  }
 }
+

@@ -12,7 +12,7 @@ class AppDatabase {
   static final AppDatabase instance = AppDatabase._init();
   static Database? _database;
   static const String _dbName = 'all_hadith.db';
-  static const int _dbVersion = 7;
+  static const int _dbVersion = 8;
   static const Set<String> _requiredTables = {'books', 'chapters', 'hadiths'};
 
   AppDatabase._init();
@@ -36,9 +36,20 @@ class AppDatabase {
     return await openDatabase(
       dbPath,
       version: _dbVersion,
+      onConfigure: _onConfigure,
       onOpen: _onOpen,
       onUpgrade: _onUpgrade,
     );
+  }
+
+  Future<void> _onConfigure(Database db) async {
+    try {
+      await db.execute('PRAGMA journal_mode = WAL');
+      await db.execute('PRAGMA synchronous = NORMAL');
+      await db.execute('PRAGMA cache_size = -2000'); // 2MB cache, ideal for low RAM phones
+      await db.execute('PRAGMA temp_store = MEMORY');
+      await db.execute('PRAGMA foreign_keys = ON');
+    } catch (_) {}
   }
 
   Future<String> _getDatabasePath() async {
@@ -65,16 +76,16 @@ class AppDatabase {
   Future<void> _ensureNativeDatabaseFile(String dbPath) async {
     final dbFile = File(dbPath);
     final exists = await dbFile.exists();
-    final hasBytes = exists && await dbFile.length() > 0;
-    final hasSchema = hasBytes && await _hasRequiredTables(dbPath);
 
-    if (hasSchema) {
-      return;
-    }
-
+    // Fast path for low-end phones: If DB exists and has substantial data (>5MB),
+    // skip the expensive probe connection and sqlite_master queries completely.
     if (exists) {
+      final length = await dbFile.length();
+      if (length > 5000000) {
+        return;
+      }
       debugPrintError(
-        'Database file is missing required tables. Resetting local copy.',
+        'Database file is suspiciously small ($length bytes). Resetting local copy.',
       );
       await dbFile.delete();
     }
@@ -171,17 +182,23 @@ class AppDatabase {
 
   /// Create user-data tables (these are added on top of the pre-built asset DB)
   Future<void> _onOpen(Database db) async {
-    final tablesExist = await _dataTablesExist(db);
-    if (!tablesExist) {
-      debugPrintError(
-        'Data tables not found (asset copy may have failed). '
-        'Creating schema from scratch.',
-      );
-      await _createDataTables(db);
+    // Fast path: Only create user tables and indexes if they do not exist yet.
+    // Skips 13 redundant DDL statements on every app launch.
+    final userTableCheck = await db.rawQuery(
+      "SELECT name FROM sqlite_master WHERE type='table' AND name='bookmarks'",
+    );
+    if (userTableCheck.isEmpty) {
+      final tablesExist = await _dataTablesExist(db);
+      if (!tablesExist) {
+        debugPrintError(
+          'Data tables not found (asset copy may have failed). '
+          'Creating schema from scratch.',
+        );
+        await _createDataTables(db);
+      }
+      await _createUserTables(db);
+      await _createIndexes(db);
     }
-    await _createUserTables(db);
-    await _createIndexes(db);
-    await db.execute('PRAGMA foreign_keys = ON');
   }
 
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
@@ -199,6 +216,31 @@ class AppDatabase {
       try {
         await db.execute('ALTER TABLE hadiths ADD COLUMN parent_id INTEGER');
       } catch (_) {} // Column may already exist
+    }
+    if (oldVersion < 8) {
+      // Populate Tirmidhi grades for existing databases where grade is empty
+      try {
+        await db.execute('''
+UPDATE hadiths SET grade = 'Hasan Sahih'
+WHERE book_id = 4 AND (grade IS NULL OR trim(grade) = '')
+AND (arabic_text LIKE '%حَدِيثٌ حَسَنٌ صَحِيحٌ%' OR urdu_text LIKE '%حسن صحیح%' OR urdu_text LIKE '%حسن صحيح%');
+        ''');
+        await db.execute('''
+UPDATE hadiths SET grade = 'Hasan'
+WHERE book_id = 4 AND (grade IS NULL OR trim(grade) = '')
+AND (arabic_text LIKE '%حَدِيثٌ حَسَنٌ%' OR urdu_text LIKE '%حدیث حسن%' OR urdu_text LIKE '%حدیث حسن غریب%' OR arabic_text LIKE '%حَدِيثٌ حَسَنٌ غَرِيبٌ%');
+        ''');
+        await db.execute('''
+UPDATE hadiths SET grade = 'Sahih'
+WHERE book_id = 4 AND (grade IS NULL OR trim(grade) = '')
+AND (arabic_text LIKE '%حَدِيثٌ صَحِيحٌ%' OR urdu_text LIKE '%حدیث صحیح%' OR urdu_text LIKE '%صحیح%');
+        ''');
+        await db.execute('''
+UPDATE hadiths SET grade = 'Daif'
+WHERE book_id = 4 AND (grade IS NULL OR trim(grade) = '')
+AND (arabic_text LIKE '%حَدِيثٌ غَرِيبٌ%' OR urdu_text LIKE '%حدیث غریب%' OR arabic_text LIKE '%ضَعِيفٌ%' OR urdu_text LIKE '%ضعیف%');
+        ''');
+      } catch (_) {}
     }
   }
 

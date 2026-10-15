@@ -35,10 +35,11 @@ class AppSettings {
     this.urduFontColor = 'Black',
     this.englishFontColor = 'Black',
     this.viewType = 'All Ahadith',
-    this.uiColor = 'Green',
+    this.uiColor = 'Book Theme',
     this.urduAlignment = 'Right',
     this.titleLanguage = 'Urdu',
   });
+
   String get activeFontFamily {
     if (titleLanguage == 'English') return englishFontFamily;
     if (titleLanguage == 'Arabic') return arabicFontFamily;
@@ -124,7 +125,13 @@ class SettingsNotifier extends Notifier<AppSettings> {
       urduFontColor: _prefs.getString('urduFontColor') ?? 'Black',
       englishFontColor: _prefs.getString('englishFontColor') ?? 'Black',
       viewType: _prefs.getString('viewType') ?? 'All Ahadith',
-      uiColor: _prefs.getString('uiColor') ?? 'Green',
+      uiColor: () {
+        final saved = _prefs.getString('uiColor');
+        if (saved == null || saved == 'Terracotta' || saved == 'Default') {
+          return 'Book Theme';
+        }
+        return saved;
+      }(),
       urduAlignment: _prefs.getString('urduAlignment') ?? 'Right',
       titleLanguage: _prefs.getString('titleLanguage') ?? 'Urdu',
     );
@@ -229,4 +236,3 @@ final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
 });
 
 final settingsProvider = NotifierProvider<SettingsNotifier, AppSettings>(SettingsNotifier.new);
-

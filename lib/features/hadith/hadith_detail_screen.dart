@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import 'package:share_plus/share_plus.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../theme/app_theme.dart';
 import '../../data/repositories/hadith_repository.dart';
 import '../../domain/models/models.dart';
@@ -16,8 +17,9 @@ import '../hadith/hadith_list_screen.dart';
 import '../home/home_screen.dart' show statsProvider, chapterProgressProvider;
 import 'share_image_screen.dart';
 import '../books/book_provider.dart';
-import '../../widgets/banner_ad_widget.dart';
+import '../common/widgets/hadith_grade_badge.dart';
 import '../../core/services/in_app_review_service.dart';
+import '../../core/ads/ad_service.dart';
 
 final hadithsByChapterProvider = FutureProvider.family<List<Hadith>, int>((
   ref,
@@ -68,21 +70,22 @@ class _HadithDetailScreenState extends ConsumerState<HadithDetailScreen> {
     super.initState();
     _currentIndex = widget.startIndex;
     _pageController = PageController(initialPage: widget.startIndex);
-    _checkReviewPrompt(widget.startIndex);
+    _saveProgress();
+    _onHadithViewed();
+    // Prompt review on 2nd detail visit (with 3-day cooldown if dismissed/cancelled)
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        InAppReviewService.checkPromptOnHadithDetail();
+      }
+    });
   }
 
-  void _checkReviewPrompt(int hadithIndex) {
-    if (hadithIndex >= 1) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) {
-          InAppReviewService.checkAndPromptReview(
-            context,
-            hadithIndex: hadithIndex,
-            appName: 'All Hadith',
-          );
-        }
-      });
-    }
+  void _onHadithViewed() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        InAppReviewService.incrementHadithReadAndCheckPrompt(context);
+      }
+    });
   }
 
   @override
@@ -102,25 +105,76 @@ class _HadithDetailScreenState extends ConsumerState<HadithDetailScreen> {
         ref.invalidate(chapterProgressProvider);
       }
     });
+    repo.getChapterById(widget.chapterId).then((ch) {
+      final bId = ch?.bookId ?? 1;
+      SharedPreferences.getInstance().then((prefs) {
+        prefs.setInt('last_read_chapter_id', widget.chapterId);
+        prefs.setInt('last_read_hadith_index', _currentIndex);
+        prefs.setInt('last_read_chapter_id_$bId', widget.chapterId);
+        prefs.setInt('last_read_hadith_index_$bId', _currentIndex);
+      });
+    });
+  }
+
+  bool _canPop = false;
+  bool _isExiting = false;
+
+  void _handleExit() {
+    if (_isExiting) return;
+    _isExiting = true;
+    _saveProgress();
+    AdService.showRewardedInterstitialOnHadithExit(
+      onComplete: () {
+        if (mounted) {
+          setState(() {
+            _canPop = true;
+          });
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) {
+              context.pop();
+            }
+          });
+        }
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final hadithsAsync = ref.watch(hadithsByChapterProvider(widget.chapterId));
+    final chapterAsync = ref.watch(singleChapterProvider(widget.chapterId));
     final settings = ref.watch(settingsProvider);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return Scaffold(
-      bottomNavigationBar: const BannerAdWidget(),
+    return PopScope(
+      canPop: _canPop,
+      onPopInvokedWithResult: (didPop, result) {
+        if (didPop) return;
+        _handleExit();
+      },
+      child: Scaffold(
       appBar: AppBar(
-        title: Text('Chapter ${widget.chapterId}'),
+        title: chapterAsync.when(
+          data: (ch) {
+            if (ch == null) return Text('Chapter ${widget.chapterId}');
+            final chTitle = settings.titleLanguage == 'English'
+                ? ch.titleEnglish
+                : settings.titleLanguage == 'Arabic'
+                    ? ch.titleArabic
+                    : ch.titleUrdu;
+            return Text(
+              '${ch.bookNumber}. $chTitle',
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+              overflow: TextOverflow.ellipsis,
+            );
+          },
+          loading: () => Text('Chapter ${widget.chapterId}'),
+          error: (_, _) => Text('Chapter ${widget.chapterId}'),
+        ),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            _saveProgress();
-            context.pop();
-          },
+          onPressed: _handleExit,
         ),
         actions: [
           IconButton(
@@ -167,6 +221,7 @@ class _HadithDetailScreenState extends ConsumerState<HadithDetailScreen> {
           return _buildHadithView(hadiths, hadiths.length, settings, isDark);
         },
       ),
+    ),
     );
   }
 
@@ -272,7 +327,7 @@ class _HadithDetailScreenState extends ConsumerState<HadithDetailScreen> {
               });
               // FIX: Only save progress on page change, not during build()
               _saveProgress();
-              _checkReviewPrompt(index);
+              _onHadithViewed();
             },
             itemBuilder: (context, index) {
               final activeHadith = hadiths[index];
@@ -317,31 +372,11 @@ class _HadithDetailScreenState extends ConsumerState<HadithDetailScreen> {
                                         fontWeight: FontWeight.w500,
                                       ),
                                     ),
-                                    if (activeHadith.grade != null &&
-                                        activeHadith.grade!.trim().isNotEmpty) ...[
-                                      const SizedBox(width: 8),
-                                      Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 8,
-                                          vertical: 2,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: Colors.amber.withValues(alpha: 0.2),
-                                          borderRadius: BorderRadius.circular(6),
-                                          border: Border.all(
-                                            color: Colors.amber.withValues(alpha: 0.6),
-                                          ),
-                                        ),
-                                        child: Text(
-                                          activeHadith.grade!,
-                                          style: const TextStyle(
-                                            color: Colors.amber,
-                                            fontSize: 11,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                      ),
-                                    ],
+                                    const SizedBox(width: 8),
+                                    HadithGradeBadge(
+                                      hadith: activeHadith,
+                                      isProminent: true,
+                                    ),
                                   ],
                                 ),
                                 const SizedBox(height: 16),

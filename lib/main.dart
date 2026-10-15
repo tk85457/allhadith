@@ -8,6 +8,7 @@ import 'package:sqflite_common_ffi_web/sqflite_ffi_web.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'theme/app_theme.dart';
 import 'core/router.dart';
+import 'core/ads/ad_service.dart';
 import 'features/settings/settings_provider.dart';
 import 'features/books/book_provider.dart';
 
@@ -83,7 +84,7 @@ class _BootLoading extends StatelessWidget {
     return const MaterialApp(
       debugShowCheckedModeBanner: false,
       home: Scaffold(
-        backgroundColor: AppTheme.primaryDark,
+        backgroundColor: AppTheme.terracottaDark,
         body: SizedBox.shrink(),
       ),
     );
@@ -98,11 +99,14 @@ class AllHadithApp extends ConsumerWidget {
     final settings = ref.watch(settingsProvider);
     final selectedBookId = ref.watch(selectedBookIdProvider);
 
-    final primaryColor = settings.uiColor != 'Green' && settings.uiColor != 'Default'
-        ? AppTheme.getPrimaryColor(settings.uiColor)
-        : AppTheme.getBookPrimaryColor(selectedBookId);
+    final primaryColor = (settings.uiColor == 'Book Theme' ||
+            settings.uiColor == 'Default' ||
+            settings.uiColor == 'Terracotta')
+        ? AppTheme.getBookPrimaryColor(selectedBookId)
+        : AppTheme.getPrimaryColor(settings.uiColor);
 
     return MaterialApp.router(
+      scaffoldMessengerKey: AdService.scaffoldMessengerKey,
       title: 'All Hadith',
       debugShowCheckedModeBanner: false,
       theme: settings.isDarkMode

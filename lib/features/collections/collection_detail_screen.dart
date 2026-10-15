@@ -8,7 +8,7 @@ import '../../data/repositories/hadith_repository.dart';
 import '../settings/settings_provider.dart';
 import '../../domain/models/models.dart';
 import '../books/book_provider.dart';
-import '../../widgets/banner_ad_widget.dart';
+import '../common/widgets/hadith_grade_badge.dart';
 
 final collectionDetailsProvider = FutureProvider.family<HadithCollection?, int>(
   (ref, id) async {
@@ -36,7 +36,6 @@ class CollectionDetailScreen extends ConsumerWidget {
     final hadithsAsync = ref.watch(collectionHadithsProvider(collectionId));
 
     return Scaffold(
-      bottomNavigationBar: const BannerAdWidget(),
       appBar: AppBar(
         title: collectionAsync.when(
           data: (c) => Text(c?.name ?? 'Collection'),
@@ -168,6 +167,7 @@ class CollectionDetailScreen extends ConsumerWidget {
                                   ),
                                 ),
                               ),
+                              HadithGradeBadge(hadith: hadith),
                             ],
                           ),
                           Icon(

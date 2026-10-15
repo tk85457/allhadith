@@ -58,5 +58,15 @@ void main() {
       ];
       expect(coverPaths.length, 6);
     });
+
+    test('Warm Terracotta & Desert Dune theme specifications', () {
+      expect(AppTheme.terracottaPrimary, const Color(0xFFC25834));
+      expect(AppTheme.terracottaDark, const Color(0xFF8C381E));
+      expect(AppTheme.terracottaLight, const Color(0xFFD6734F));
+      expect(AppTheme.desertDuneGold, const Color(0xFFE4B98C));
+      expect(AppTheme.terracottaDarkSurface, const Color(0xFF160F0D));
+      expect(AppTheme.terracottaCardDark, const Color(0xFF241612));
+      expect(AppTheme.getPrimaryColor('Terracotta'), AppTheme.terracottaPrimary);
+    });
   });
 }

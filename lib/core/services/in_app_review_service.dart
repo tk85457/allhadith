@@ -1,319 +1,176 @@
 import 'package:flutter/material.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-/// Service to manage Google Play In-App Review with smart trigger rules:
-/// 1. Never on first open (appOpenCount < 2)
-/// 2. On 2nd open or later, triggers on Hadith Detail Screen when on 2nd Hadith (index >= 1)
-/// 3. If user taps 'Later' or dismisses, wait 2 full days (48h) before prompting again
-/// 4. Once rated, never prompt again
+/// Official Google Play Native In-App Review Service:
 /// 
-/// Performance & Stability Safeguards:
-/// - In-Memory Fast Cache: 0 disk I/O during hadith swiping, zero lag/stutter (120 FPS smooth).
-/// - 100% Crash-Proof: All operations guarded by try-catch; fails silently if Google Play is unavailable.
-/// - Lifecycle-Safe: Guards all dialogs with context.mounted checks.
+/// 1. Native In-App Review (Automatic):
+///    - Calls Google Play's official Native In-App Review dialog (`requestReview()`).
+///    - User can give 1-5 stars & write review directly inside the app.
+///    - Google Play automatically publishes the review.
+///    - Triggers naturally after reading 3 Hadiths or saving a Bookmark.
+/// 
+/// 2. Direct Play Store Launch (Button tap):
+///    - When user explicitly taps "Rate this App" in Settings, Menu, or About Screen,
+///      it directly opens the official Google Play Store app page.
 class InAppReviewService {
-  static const String _keyAppOpenCount = 'review_app_open_count';
   static const String _keyHasRated = 'review_has_rated';
+  static const String _keyHadithsReadCount = 'review_hadiths_read_count';
   static const String _keyLastPromptTime = 'review_last_prompt_timestamp';
+  static const String _keyAppOpenCount = 'review_app_open_count';
 
-  // Cooldown period: 2 days (48 hours)
-  static const Duration _cooldownDuration = Duration(hours: 48);
-
+  static const String packageName = 'com.taha.allhadithshahih';
   static final InAppReview _inAppReview = InAppReview.instance;
 
-  // ─── Fast In-Memory Cache (Eliminates disk I/O during scrolling) ───
+  // Fast in-memory session tracking
   static bool? _cachedHasRated;
-  static int? _cachedAppOpenCount;
-  static int? _cachedLastPromptTime;
-  static bool _sessionPromptAttempted = false;
-  static bool _isPrompting = false;
+  static int _sessionHadithsRead = 0;
+  static bool _sessionPromptShown = false;
 
-  /// Increment app launch count on startup (called in Splash Screen)
+  /// Increment app launch count on startup
   static Future<void> recordAppOpen() async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final currentCount = prefs.getInt(_keyAppOpenCount) ?? 0;
-      final newCount = currentCount + 1;
-      _cachedAppOpenCount = newCount;
+      final count = prefs.getInt(_keyAppOpenCount) ?? 0;
+      await prefs.setInt(_keyAppOpenCount, count + 1);
       _cachedHasRated = prefs.getBool(_keyHasRated) ?? false;
-      _cachedLastPromptTime = prefs.getInt(_keyLastPromptTime);
-      await prefs.setInt(_keyAppOpenCount, newCount);
-    } catch (_) {
-      // Crash-proof: Never fail startup
-    }
+    } catch (_) {}
   }
 
-  /// Check if user has already rated (Fast in-memory check first)
-  static Future<bool> hasRated() async {
-    if (_cachedHasRated != null) return _cachedHasRated!;
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      _cachedHasRated = prefs.getBool(_keyHasRated) ?? false;
-      return _cachedHasRated!;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /// Mark rated permanently so it never shows again
+  /// Mark rated permanently so automatic prompts don't repeat
   static Future<void> markRated() async {
     _cachedHasRated = true;
-    _sessionPromptAttempted = true;
+    _sessionPromptShown = true;
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool(_keyHasRated, true);
-    } catch (_) {
-      // Crash-proof
-    }
+    } catch (_) {}
   }
 
-  /// Check if eligible to prompt on detail screen (Ultra-fast, non-blocking)
-  static Future<bool> shouldPromptReview({required int hadithIndex}) async {
-    // 1. Instant check: Must be at least the 2nd Hadith (0-indexed => index >= 1)
-    if (hadithIndex < 1) return false;
+  /// ─── 1. GOOGLE PLAY NATIVE IN-APP REVIEW ───
+  static Future<void> requestNativeReview({bool force = false}) async {
+    if (!force) {
+      if (_cachedHasRated == true || _sessionPromptShown) return;
 
-    // 2. Instant check: If already prompted in this app session, skip immediately
-    if (_sessionPromptAttempted || _isPrompting) return false;
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        _cachedHasRated = prefs.getBool(_keyHasRated) ?? false;
+        if (_cachedHasRated == true) return;
 
-    // 3. Instant check: If already rated, skip immediately
-    if (_cachedHasRated == true) return false;
-
-    // 4. Instant check: If known 1st open, skip immediately
-    if (_cachedAppOpenCount != null && _cachedAppOpenCount! < 2) return false;
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-
-      // Ensure cache is up to date
-      _cachedHasRated = prefs.getBool(_keyHasRated) ?? false;
-      if (_cachedHasRated!) return false;
-
-      _cachedAppOpenCount = prefs.getInt(_keyAppOpenCount) ?? 0;
-      // Rule: Never on first open. Must be 2nd open or later.
-      if (_cachedAppOpenCount! < 2) return false;
-
-      // Rule: If prompted before, check 2-day (48h) cooldown
-      _cachedLastPromptTime = prefs.getInt(_keyLastPromptTime);
-      if (_cachedLastPromptTime != null) {
-        final lastPromptDate = DateTime.fromMillisecondsSinceEpoch(_cachedLastPromptTime!);
-        final difference = DateTime.now().difference(lastPromptDate);
-        if (difference < _cooldownDuration) {
-          // Less than 2 days passed since last cancel/prompt
-          return false;
+        // Cooldown: at least 3 days between automatic review prompts
+        final lastPrompt = prefs.getInt(_keyLastPromptTime);
+        if (lastPrompt != null) {
+          final diff = DateTime.now().difference(DateTime.fromMillisecondsSinceEpoch(lastPrompt));
+          if (diff < const Duration(days: 3)) {
+            return;
+          }
         }
-      }
-
-      return true;
-    } catch (_) {
-      // Crash-proof: Fail silently on any error
-      return false;
+      } catch (_) {}
     }
-  }
 
-  /// Record prompt shown timestamp to activate 2-day cooldown
-  static Future<void> recordPromptShown() async {
-    _sessionPromptAttempted = true;
-    final nowMillis = DateTime.now().millisecondsSinceEpoch;
-    _cachedLastPromptTime = nowMillis;
+    _sessionPromptShown = true;
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt(_keyLastPromptTime, nowMillis);
-    } catch (_) {
-      // Crash-proof
-    }
-  }
+      await prefs.setInt(_keyLastPromptTime, DateTime.now().millisecondsSinceEpoch);
+    } catch (_) {}
 
-  /// Check eligibility and show review dialog/bottom sheet on detail screen
-  static Future<void> checkAndPromptReview(
-    BuildContext context, {
-    required int hadithIndex,
-    required String appName,
-  }) async {
-    // Fast in-memory bypass
-    if (hadithIndex < 1 || _sessionPromptAttempted || _isPrompting || _cachedHasRated == true) {
-      return;
-    }
-
-    try {
-      final eligible = await shouldPromptReview(hadithIndex: hadithIndex);
-      if (!eligible || !context.mounted) return;
-
-      _isPrompting = true;
-      _sessionPromptAttempted = true;
-
-      // Record prompt shown right away so 2-day cooldown begins
-      await recordPromptShown();
-
-      // Gentle pause (800ms) so user is not interrupted while content settles
-      await Future.delayed(const Duration(milliseconds: 800));
-      if (!context.mounted) {
-        _isPrompting = false;
-        return;
-      }
-
-      await _showInAppReviewPrompt(context, appName: appName);
-    } catch (_) {
-      // Crash-proof: Never allow exception to reach UI
-    } finally {
-      _isPrompting = false;
-    }
-  }
-
-  /// Directly trigger Google Play In-App Review (e.g. from Settings)
-  static Future<void> triggerManualReview({required String appName}) async {
-    await markRated();
     try {
       final isAvailable = await _inAppReview.isAvailable();
       if (isAvailable) {
         await _inAppReview.requestReview();
-      } else {
-        await _inAppReview.openStoreListing();
       }
-    } catch (_) {
-      // Fallback to store listing if Play Services review fails
-      try {
-        await _inAppReview.openStoreListing();
-      } catch (_) {
-        // Crash-proof: Complete silence on fail
-      }
+    } catch (e) {
+      debugPrint('Google Play native in-app review error: $e');
     }
   }
 
-  /// Beautiful, themed in-app prompt sheet that triggers Google Play review
-  static Future<void> _showInAppReviewPrompt(
-    BuildContext context, {
-    required String appName,
-  }) async {
-    if (!context.mounted) return;
+  static const String _keyDetailVisitsCount = 'review_detail_visits_count';
+
+  /// Check and trigger Google Play Native In-App Review when entering Hadith Detail Screen.
+  static Future<void> checkPromptOnHadithDetail() async {
+    if (_cachedHasRated == true || _sessionPromptShown) return;
 
     try {
-      final theme = Theme.of(context);
-      final isDark = theme.brightness == Brightness.dark;
+      final prefs = await SharedPreferences.getInstance();
+      _cachedHasRated = prefs.getBool(_keyHasRated) ?? false;
+      if (_cachedHasRated == true) return;
 
-      await showModalBottomSheet<void>(
-        context: context,
-        backgroundColor: Colors.transparent,
-        isScrollControlled: true,
-        builder: (ctx) {
-          return Container(
-            margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-            decoration: BoxDecoration(
-              color: isDark ? const Color(0xFF1E293B) : Colors.white,
-              borderRadius: BorderRadius.circular(24),
-              boxShadow: const [
-                BoxShadow(
-                  color: Colors.black26,
-                  blurRadius: 20,
-                  offset: Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Gold Star Badge
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
-                  ),
-                  child: const Icon(
-                    Icons.star_rounded,
-                    color: Colors.amber,
-                    size: 38,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Enjoying $appName?',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'If this app is helping you learn Hadith, please take a moment to rate us. Your review helps more people discover the Hadith!',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 14,
-                    height: 1.4,
-                    color: isDark ? Colors.white70 : Colors.black54,
-                  ),
-                ),
-                const SizedBox(height: 20),
-                // Star Rating Row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(5, (index) {
-                    return IconButton(
-                      iconSize: 36,
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      icon: const Icon(Icons.star_rounded, color: Colors.amber),
-                      onPressed: () async {
-                        try {
-                          Navigator.of(ctx).pop();
-                        } catch (_) {}
-                        await triggerManualReview(appName: appName);
-                      },
-                    );
-                  }),
-                ),
-                const SizedBox(height: 16),
-                // Rate Button
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: theme.primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      elevation: 0,
-                    ),
-                    onPressed: () async {
-                      try {
-                        Navigator.of(ctx).pop();
-                      } catch (_) {}
-                      await triggerManualReview(appName: appName);
-                    },
-                    child: const Text(
-                      'Rate on Google Play',
-                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                // Remind Me Later button
-                TextButton(
-                  onPressed: () {
-                    try {
-                      Navigator.of(ctx).pop();
-                    } catch (_) {}
-                  },
-                  child: Text(
-                    'Remind Me Later',
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: isDark ? Colors.white54 : Colors.black45,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      );
-    } catch (_) {
-      // Crash-proof: Ignore any sheet display errors
+      final visits = (prefs.getInt(_keyDetailVisitsCount) ?? 0) + 1;
+      await prefs.setInt(_keyDetailVisitsCount, visits);
+
+      // Only trigger on 2nd visit or beyond
+      if (visits >= 2) {
+        await Future.delayed(const Duration(milliseconds: 1000));
+        await requestNativeReview();
+      }
+    } catch (_) {}
+  }
+
+  /// Track hadith reads and trigger Google Play Native In-App Review
+  static Future<void> incrementHadithReadAndCheckPrompt(BuildContext context) async {
+    _sessionHadithsRead++;
+
+    if (_cachedHasRated == true || _sessionPromptShown) return;
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      _cachedHasRated = prefs.getBool(_keyHasRated) ?? false;
+      if (_cachedHasRated == true) return;
+
+      final totalRead = (prefs.getInt(_keyHadithsReadCount) ?? 0) + 1;
+      await prefs.setInt(_keyHadithsReadCount, totalRead);
+
+      // Also trigger if reading 3+ hadiths
+      if (totalRead == 3 || totalRead == 15 || _sessionHadithsRead == 5) {
+        await Future.delayed(const Duration(milliseconds: 800));
+        await requestNativeReview();
+      }
+    } catch (_) {}
+  }
+
+  /// Trigger native review when user bookmarks a hadith
+  static Future<void> checkPromptOnAction(BuildContext context, {required String action}) async {
+    if (_cachedHasRated == true || _sessionPromptShown) return;
+    await Future.delayed(const Duration(milliseconds: 600));
+    await requestNativeReview();
+  }
+
+  /// ─── 2. DIRECT GOOGLE PLAY STORE LAUNCH ───
+  static Future<void> openGooglePlayStore() async {
+    await markRated();
+
+    final Uri marketUri = Uri.parse('market://details?id=$packageName');
+    final Uri webUri = Uri.parse('https://play.google.com/store/apps/details?id=$packageName');
+
+    // 1. Direct Play Store App launch (market://)
+    try {
+      final launched = await launchUrl(marketUri, mode: LaunchMode.externalApplication);
+      if (launched) return;
+    } catch (_) {}
+
+    // 2. InAppReview plugin fallback
+    try {
+      await _inAppReview.openStoreListing();
+      return;
+    } catch (_) {}
+
+    // 3. Web browser fallback
+    try {
+      await launchUrl(webUri, mode: LaunchMode.externalApplication);
+    } catch (_) {}
+  }
+
+  /// Backward-compatible aliases
+  static Future<void> triggerManualReview({required String appName}) async {
+    await openGooglePlayStore();
+  }
+
+  static Future<void> showRatingDialog(BuildContext context, {bool isManual = false}) async {
+    if (isManual) {
+      await openGooglePlayStore();
+    } else {
+      await requestNativeReview();
     }
   }
 }

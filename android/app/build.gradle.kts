@@ -14,11 +14,12 @@ if (keystorePropertiesFile.exists()) {
 }
 
 android {
-    namespace = "com.allhadith.app"
+    namespace = "com.taha.allhadithshahih"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = "28.2.13676358"
 
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -37,7 +38,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.allhadith.app"
+        applicationId = "com.taha.allhadithshahih"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -68,7 +69,14 @@ flutter {
 }
 
 dependencies {
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
     implementation("androidx.activity:activity-ktx:1.9.0")
+
+    // Google Mobile Ads Mediation Adapters & SDKs
+    // Unity Ads SDK + Official Google AdMob Adapter
+    implementation("com.unity3d.ads:unity-ads:4.13.1")
+    implementation("com.google.ads.mediation:unity:4.13.1.0")
+    implementation("com.google.ads.mediation:facebook:6.18.0.0")
 }
 
 // --- 16 KB page size fix -----------------------------------------------

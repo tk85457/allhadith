@@ -8,10 +8,17 @@ import '../../domain/models/models.dart';
 import '../settings/settings_provider.dart';
 import '../collections/collections_screen.dart';
 import '../books/book_provider.dart';
-import '../../widgets/banner_ad_widget.dart';
+import '../common/widgets/hadith_grade_badge.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
-  const SearchScreen({super.key});
+  final int? initialBookId;
+  final String? initialQuery;
+
+  const SearchScreen({
+    super.key,
+    this.initialBookId,
+    this.initialQuery,
+  });
 
   @override
   ConsumerState<SearchScreen> createState() => _SearchScreenState();
@@ -23,8 +30,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   // Book Filter: null means all books
   int? _selectedBookId;
 
-  // FIX: This filter now actually affects the search query
-  String _selectedLanguage = 'Urdu Translation';
+  // Language Filter: 'All', 'Urdu', 'English', 'Arabic'
+  String _selectedLanguage = 'All';
 
   // FIX: This filter now actually applies the isPrimary filter
   bool _onlyPrimaryHadiths = true;
@@ -36,6 +43,44 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   bool _hasMore = false;
   int _currentPage = 0;
   static const int _pageSize = 30;
+
+  bool _isLtrText() {
+    if (_selectedLanguage == 'English') return true;
+    if (_selectedLanguage == 'Arabic' || _selectedLanguage == 'Urdu') return false;
+    final text = _controller.text.trim();
+    if (text.isEmpty) return false;
+    return RegExp(r'^[a-zA-Z0-9]').hasMatch(text);
+  }
+
+  String _getHintText() {
+    switch (_selectedLanguage) {
+      case 'Arabic':
+        return 'ابحث بنص الحديث بالعربية (مثال: نية، صلاة)';
+      case 'English':
+        return 'Search hadith text in English (e.g. prayer)';
+      case 'Urdu':
+        return 'حدیث کا اردو متن تلاش کریں (مثلاً: نماز، نیت)';
+      default:
+        return 'Search in Urdu, English, Arabic or #...';
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.initialBookId != null) {
+      _selectedBookId = widget.initialBookId == 0 ? null : widget.initialBookId;
+    } else {
+      _selectedBookId = ref.read(selectedBookIdProvider);
+    }
+
+    if (widget.initialQuery != null && widget.initialQuery!.trim().isNotEmpty) {
+      _controller.text = widget.initialQuery!.trim();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _performSearch();
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -66,11 +111,36 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     List<Hadith> newHadiths;
     if (isNumber) {
-      final single = await repo.getHadithByGlobalNumber(
-        query,
-        bookId: _selectedBookId,
-      );
-      newHadiths = single != null ? [single] : [];
+      if (_selectedBookId != null) {
+        newHadiths = await repo.searchHadithsByNumber(
+          query,
+          bookId: _selectedBookId,
+          onlyPrimary: _onlyPrimaryHadiths,
+        );
+        if (newHadiths.isEmpty) {
+          final single = await repo.getHadithByGlobalNumber(
+            query,
+            bookId: _selectedBookId,
+          );
+          if (single != null) newHadiths = [single];
+        }
+      } else {
+        newHadiths = await repo.searchHadithsByNumber(
+          query,
+          onlyPrimary: _onlyPrimaryHadiths,
+        );
+      }
+      if (newHadiths.isEmpty) {
+        newHadiths = await repo.searchHadiths(
+          query,
+          language: _selectedLanguage,
+          bookId: _selectedBookId,
+          onlyPrimary: _onlyPrimaryHadiths,
+          exactMatch: !_partialMatch,
+          offset: _currentPage * _pageSize,
+          limit: _pageSize,
+        );
+      }
     } else {
       newHadiths = await repo.searchHadiths(
         query,
@@ -107,7 +177,6 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final settings = ref.watch(settingsProvider);
 
     return Scaffold(
-      bottomNavigationBar: const BannerAdWidget(),
       appBar: AppBar(title: const Text('Search Hadith'), centerTitle: true),
       body: Column(
         children: [
@@ -140,34 +209,53 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   ),
                   child: Row(
                     children: [
+                      IconButton(
+                        icon: Icon(
+                          Icons.search,
+                          color: _selectedBookId != null
+                              ? AppTheme.getBookPrimaryColor(_selectedBookId!)
+                              : Theme.of(context).primaryColor,
+                        ),
+                        onPressed: _performSearch,
+                      ),
                       Expanded(
                         child: TextField(
                           controller: _controller,
-                          textAlign: TextAlign.right,
-                          textDirection: TextDirection.rtl,
+                          textAlign: _isLtrText() ? TextAlign.left : TextAlign.right,
+                          textDirection: _isLtrText() ? TextDirection.ltr : TextDirection.rtl,
                           onSubmitted: (_) => _performSearch(),
+                          onChanged: (_) => setState(() {}),
                           decoration: InputDecoration(
-                            hintText: 'مطلوب الفاظ یہاں ٹائپ کریں',
+                            hintText: _getHintText(),
                             hintStyle: TextStyle(
                               color: isDark
                                   ? Colors.grey.shade500
                                   : Colors.grey.shade400,
+                              fontSize: 13,
                             ),
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
+                              horizontal: 8,
                               vertical: 12,
                             ),
                           ),
                         ),
                       ),
-                      IconButton(
-                        icon: Icon(
-                          Icons.search,
-                          color: Theme.of(context).primaryColor,
+                      if (_controller.text.isNotEmpty)
+                        IconButton(
+                          icon: Icon(
+                            Icons.close,
+                            size: 18,
+                            color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                          ),
+                          onPressed: () {
+                            _controller.clear();
+                            setState(() {
+                              _results = [];
+                              _hasSearched = false;
+                            });
+                          },
                         ),
-                        onPressed: _performSearch,
-                      ),
                     ],
                   ),
                 ),
@@ -196,16 +284,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                 ).animate().fadeIn(delay: 80.ms),
                 const SizedBox(height: 8),
 
-                // FIX: Language Filter — now changes the actual search language
-                // Urdu = only Urdu text search, English = only English, Topic = all
-                Row(
-                  children: [
-                    _buildRadio('Urdu Translation', isDark),
-                    _buildRadio('Topic', isDark),
-                    _buildRadio('English', isDark),
-                  ],
+                // Language Filter — All Languages, Urdu, English, Arabic
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: [
+                      _buildLanguageChip('All Languages (تمام)', 'All', isDark),
+                      const SizedBox(width: 6),
+                      _buildLanguageChip('اردو (Urdu)', 'Urdu', isDark),
+                      const SizedBox(width: 6),
+                      _buildLanguageChip('English', 'English', isDark),
+                      const SizedBox(width: 6),
+                      _buildLanguageChip('العربية (Arabic)', 'Arabic', isDark),
+                    ],
+                  ),
                 ).animate().fadeIn(delay: 100.ms),
-                const SizedBox(height: 4),
+                const SizedBox(height: 6),
 
                 // FIX: Sahih Only filter — now applies isPrimary filter
                 SingleChildScrollView(
@@ -430,8 +524,119 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                             }
 
                             final hadith = _results[index];
-                            final query = _controller.text;
-                            return Container(
+                            final query = _controller.text.trim();
+                            final bookColor = AppTheme.getBookPrimaryColor(hadith.bookId);
+
+                            // Detect which text to display as primary
+                            final bool isArMatch = _selectedLanguage == 'Arabic' ||
+                                (_selectedLanguage == 'All' && _hasArabicMatch(hadith.arabicText, query));
+                            final bool isEnMatch = _selectedLanguage == 'English' ||
+                                (_selectedLanguage == 'All' &&
+                                    hadith.englishText.toLowerCase().contains(query.toLowerCase()));
+                            final bool isUrMatch = _selectedLanguage == 'Urdu' ||
+                                (_selectedLanguage == 'All' && hadith.urduText.contains(query));
+
+                            String primaryText;
+                            TextStyle primaryStyle;
+                            TextDirection primaryDirection;
+                            bool isPrimaryArabic = false;
+                            String? matchBadgeText;
+
+                            String? secondaryText;
+                            TextStyle? secondaryStyle;
+                            TextDirection secondaryDirection = TextDirection.ltr;
+
+                            if (isArMatch && hadith.arabicText.isNotEmpty) {
+                              primaryText = hadith.arabicText;
+                              primaryDirection = TextDirection.rtl;
+                              isPrimaryArabic = true;
+                              primaryStyle = AppTheme.safeGetFont(
+                                settings.arabicFontFamily,
+                                color: AppTheme.getFontColor(settings.arabicFontColor, isDark) ??
+                                    (isDark ? Colors.white : AppTheme.textDark),
+                                fontSize: 16,
+                                height: 1.8,
+                              );
+                              if (_selectedLanguage == 'All' && query.isNotEmpty) {
+                                matchBadgeText = 'Arabic Match';
+                              }
+                              if (hadith.urduText.isNotEmpty) {
+                                secondaryText = hadith.urduText;
+                                secondaryDirection = TextDirection.rtl;
+                                secondaryStyle = AppTheme.safeGetFont(
+                                  settings.activeFontFamily,
+                                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                                  fontSize: 13,
+                                  height: 1.6,
+                                );
+                              } else if (hadith.englishText.isNotEmpty) {
+                                secondaryText = hadith.englishText;
+                                secondaryDirection = TextDirection.ltr;
+                                secondaryStyle = AppTheme.safeGetFont(
+                                  settings.englishFontFamily,
+                                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                                  fontSize: 12,
+                                  height: 1.4,
+                                );
+                              }
+                            } else if (isEnMatch && hadith.englishText.isNotEmpty) {
+                              primaryText = hadith.englishText;
+                              primaryDirection = TextDirection.ltr;
+                              primaryStyle = AppTheme.safeGetFont(
+                                settings.englishFontFamily,
+                                color: AppTheme.getFontColor(settings.englishFontColor, isDark) ??
+                                    (isDark ? Colors.grey.shade300 : Colors.grey.shade800),
+                                fontSize: 13,
+                                height: 1.5,
+                              );
+                              if (_selectedLanguage == 'All' && query.isNotEmpty) {
+                                matchBadgeText = 'English Match';
+                              }
+                              if (hadith.urduText.isNotEmpty) {
+                                secondaryText = hadith.urduText;
+                                secondaryDirection = TextDirection.rtl;
+                                secondaryStyle = AppTheme.safeGetFont(
+                                  settings.activeFontFamily,
+                                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                                  fontSize: 13,
+                                  height: 1.6,
+                                );
+                              }
+                            } else {
+                              primaryText = hadith.urduText.isNotEmpty ? hadith.urduText : hadith.englishText;
+                              primaryDirection = hadith.urduText.isNotEmpty ? TextDirection.rtl : TextDirection.ltr;
+                              primaryStyle = hadith.urduText.isNotEmpty
+                                  ? AppTheme.safeGetFont(
+                                      settings.activeFontFamily,
+                                      color: AppTheme.getFontColor(settings.urduFontColor, isDark) ??
+                                          (isDark ? Colors.grey.shade200 : AppTheme.textDark),
+                                      fontSize: 14,
+                                      height: 1.8,
+                                    )
+                                  : AppTheme.safeGetFont(
+                                      settings.englishFontFamily,
+                                      color: AppTheme.getFontColor(settings.englishFontColor, isDark) ??
+                                          (isDark ? Colors.grey.shade300 : Colors.grey.shade800),
+                                      fontSize: 13,
+                                      height: 1.5,
+                                    );
+                              if (_selectedLanguage == 'All' && isUrMatch && query.isNotEmpty) {
+                                matchBadgeText = 'Urdu Match';
+                              }
+                              if (hadith.arabicText.isNotEmpty) {
+                                secondaryText = hadith.arabicText;
+                                secondaryDirection = TextDirection.rtl;
+                                secondaryStyle = AppTheme.safeGetFont(
+                                  settings.arabicFontFamily,
+                                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                                  fontSize: 14,
+                                  height: 1.6,
+                                );
+                              }
+                            }
+
+                            return RepaintBoundary(
+                              child: Container(
                               margin: const EdgeInsets.only(bottom: 8),
                               decoration: BoxDecoration(
                                 color: isDark
@@ -492,10 +697,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                                       vertical: 2,
                                                     ),
                                                     decoration: BoxDecoration(
-                                                      color: AppTheme.getBookPrimaryColor(hadith.bookId).withValues(alpha: 0.15),
+                                                      color: bookColor.withValues(alpha: 0.15),
                                                       borderRadius: BorderRadius.circular(4),
                                                       border: Border.all(
-                                                        color: AppTheme.getBookPrimaryColor(hadith.bookId).withValues(alpha: 0.35),
+                                                        color: bookColor.withValues(alpha: 0.35),
                                                         width: 0.5,
                                                       ),
                                                     ),
@@ -504,7 +709,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                                       style: TextStyle(
                                                         fontWeight: FontWeight.bold,
                                                         fontSize: 11,
-                                                        color: AppTheme.getBookPrimaryColor(hadith.bookId),
+                                                        color: bookColor,
                                                       ),
                                                     ),
                                                   ),
@@ -514,9 +719,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                                       vertical: 2,
                                                     ),
                                                     decoration: BoxDecoration(
-                                                      color: Theme.of(context)
-                                                          .primaryColor
-                                                          .withValues(alpha: 0.1),
+                                                      color: bookColor.withValues(alpha: 0.1),
                                                       borderRadius: BorderRadius.circular(4),
                                                     ),
                                                     child: Text(
@@ -524,28 +727,31 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                                       style: TextStyle(
                                                         fontWeight: FontWeight.bold,
                                                         fontSize: 11,
-                                                        color: Theme.of(
-                                                          context,
-                                                        ).primaryColor,
+                                                        color: bookColor,
                                                       ),
                                                     ),
                                                   ),
-                                                  if (hadith.grade != null && hadith.grade!.isNotEmpty)
+                                                  HadithGradeBadge(hadith: hadith),
+                                                  if (matchBadgeText != null)
                                                     Container(
                                                       padding: const EdgeInsets.symmetric(
-                                                        horizontal: 5,
+                                                        horizontal: 6,
                                                         vertical: 2,
                                                       ),
                                                       decoration: BoxDecoration(
-                                                        color: Colors.green.withValues(alpha: 0.12),
+                                                        color: Colors.amber.withValues(alpha: isDark ? 0.25 : 0.15),
                                                         borderRadius: BorderRadius.circular(4),
+                                                        border: Border.all(
+                                                          color: isDark ? Colors.amber.shade700 : Colors.amber.shade600,
+                                                          width: 0.5,
+                                                        ),
                                                       ),
                                                       child: Text(
-                                                        hadith.grade!,
-                                                        style: const TextStyle(
-                                                          fontSize: 10,
+                                                        matchBadgeText,
+                                                        style: TextStyle(
                                                           fontWeight: FontWeight.w600,
-                                                          color: Colors.green,
+                                                          fontSize: 10,
+                                                          color: isDark ? Colors.amber.shade200 : Colors.amber.shade900,
                                                         ),
                                                       ),
                                                     ),
@@ -570,38 +776,34 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                                             ),
                                           ],
                                         ),
-                                        const SizedBox(height: 6),
+                                        const SizedBox(height: 8),
                                         _buildHighlightedText(
-                                          // FIX: Show preview based on selected language
-                                          _selectedLanguage == 'English'
-                                              ? hadith.englishText
-                                              : _selectedLanguage ==
-                                                    'Urdu Translation'
-                                              ? hadith.urduText
-                                              : hadith.englishText,
+                                          primaryText,
                                           query,
-                                          AppTheme.safeGetFont(
-                                            settings.englishFontFamily,
-                                            color:
-                                                AppTheme.getFontColor(
-                                                  settings.englishFontColor,
-                                                  isDark,
-                                                ) ??
-                                                (isDark
-                                                    ? Colors.grey.shade300
-                                                    : Colors.grey.shade700),
-                                            fontSize: 13,
-                                          ),
+                                          primaryStyle,
                                           isDark,
                                           3,
+                                          textDirection: primaryDirection,
+                                          isArabic: isPrimaryArabic,
                                         ),
+                                        if (secondaryText != null && secondaryText.isNotEmpty) ...[
+                                          const SizedBox(height: 6),
+                                          Text(
+                                            secondaryText,
+                                            maxLines: 2,
+                                            overflow: TextOverflow.ellipsis,
+                                            textDirection: secondaryDirection,
+                                            style: secondaryStyle,
+                                          ),
+                                        ],
                                       ],
                                     ),
                                   ),
                                 ),
                               ),
-                            ).animate().fadeIn(delay: (50 * index).ms);
-                          },
+                            ),
+                          );
+                        },
                         ),
                       ),
                     ],
@@ -612,20 +814,66 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
+  static bool _hasArabicMatch(String arabicText, String query) {
+    if (arabicText.isEmpty || query.isEmpty) return false;
+    if (arabicText.contains(query)) return true;
+    final cleanQuery = query.replaceAll(RegExp(r'[\u064B-\u065F\u0670\u0640]'), '').trim();
+    if (cleanQuery.isEmpty) return false;
+
+    String norm(String s) {
+      return s
+          .replaceAll(RegExp(r'[\u064B-\u065F\u0670\u0640]'), '')
+          .replaceAll(RegExp(r'[أإآٱ]'), 'ا')
+          .replaceAll('ة', 'ه')
+          .replaceAll('ى', 'ي');
+    }
+
+    return norm(arabicText).contains(norm(cleanQuery));
+  }
+
+  static bool _hasArabicCharacters(String input) {
+    return RegExp(r'[\u0600-\u06FF]').hasMatch(input);
+  }
+
   Widget _buildHighlightedText(
     String text,
     String query,
     TextStyle baseStyle,
     bool isDark,
-    int maxLines,
-  ) {
+    int maxLines, {
+    TextDirection textDirection = TextDirection.ltr,
+    bool isArabic = false,
+  }) {
     if (query.isEmpty) {
       return Text(
         text,
         maxLines: maxLines,
         overflow: TextOverflow.ellipsis,
+        textDirection: textDirection,
         style: baseStyle,
       );
+    }
+
+    final highlightBg = isDark
+        ? Colors.amber.shade900.withValues(alpha: 0.6)
+        : Colors.yellow.shade200;
+    final highlightTextCol = isDark ? Colors.white : Colors.black;
+
+    if (isArabic || _hasArabicCharacters(text)) {
+      final spans = _buildArabicHighlightedSpans(
+        text,
+        query,
+        highlightBg,
+        highlightTextCol,
+      );
+      if (spans != null) {
+        return RichText(
+          textDirection: textDirection,
+          maxLines: maxLines,
+          overflow: TextOverflow.ellipsis,
+          text: TextSpan(style: baseStyle, children: spans),
+        );
+      }
     }
 
     final lowerText = text.toLowerCase();
@@ -648,11 +896,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         TextSpan(
           text: text.substring(idx, idx + query.length),
           style: TextStyle(
-            backgroundColor: isDark
-                ? Colors.amber.shade900.withValues(alpha: 0.6)
-                : Colors.yellow.shade200,
+            backgroundColor: highlightBg,
             fontWeight: FontWeight.bold,
-            color: isDark ? Colors.white : Colors.black,
+            color: highlightTextCol,
           ),
         ),
       );
@@ -661,10 +907,89 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     }
 
     return RichText(
+      textDirection: textDirection,
       maxLines: maxLines,
       overflow: TextOverflow.ellipsis,
       text: TextSpan(style: baseStyle, children: spans),
     );
+  }
+
+  List<TextSpan>? _buildArabicHighlightedSpans(
+    String text,
+    String query,
+    Color highlightColor,
+    Color textColor,
+  ) {
+    try {
+      final List<int> origIndices = [];
+      final StringBuffer normBuf = StringBuffer();
+
+      String normChar(String c) {
+        if ('أإآٱ'.contains(c)) return 'ا';
+        if (c == 'ة') return 'ه';
+        if (c == 'ى') return 'ي';
+        return c;
+      }
+
+      for (int i = 0; i < text.length; i++) {
+        final c = text[i];
+        if (RegExp(r'[\u064B-\u065F\u0670\u0640]').hasMatch(c)) continue;
+        origIndices.add(i);
+        normBuf.write(normChar(c));
+      }
+
+      final normText = normBuf.toString();
+      final cleanQuery = query.replaceAll(RegExp(r'[\u064B-\u065F\u0670\u0640]'), '').trim();
+      final normQuery = cleanQuery.split('').map(normChar).join();
+
+      if (normQuery.isEmpty || !normText.contains(normQuery)) {
+        return null;
+      }
+
+      final spans = <TextSpan>[];
+      int startNorm = 0;
+      int lastOrigIndex = 0;
+
+      while (startNorm < normText.length) {
+        final matchStart = normText.indexOf(normQuery, startNorm);
+        if (matchStart == -1) {
+          if (lastOrigIndex < text.length) {
+            spans.add(TextSpan(text: text.substring(lastOrigIndex)));
+          }
+          break;
+        }
+
+        final matchEnd = matchStart + normQuery.length;
+        final startOrig = origIndices[matchStart];
+        var endOrig = origIndices[matchEnd - 1] + 1;
+        while (endOrig < text.length &&
+            RegExp(r'[\u064B-\u065F\u0670\u0640]').hasMatch(text[endOrig])) {
+          endOrig++;
+        }
+
+        if (startOrig > lastOrigIndex) {
+          spans.add(TextSpan(text: text.substring(lastOrigIndex, startOrig)));
+        }
+
+        spans.add(
+          TextSpan(
+            text: text.substring(startOrig, endOrig),
+            style: TextStyle(
+              backgroundColor: highlightColor,
+              fontWeight: FontWeight.bold,
+              color: textColor,
+            ),
+          ),
+        );
+
+        lastOrigIndex = endOrig;
+        startNorm = matchEnd;
+      }
+
+      return spans.isNotEmpty ? spans : null;
+    } catch (_) {
+      return null;
+    }
   }
 
   void _showAddToCollectionDialog(Hadith hadith) {
@@ -759,35 +1084,51 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     );
   }
 
-  Widget _buildRadio(String value, bool isDark) {
+  Widget _buildLanguageChip(String label, String value, bool isDark) {
     final isSelected = _selectedLanguage == value;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
+    final primaryColor = _selectedBookId != null
+        ? AppTheme.getBookPrimaryColor(_selectedBookId!)
+        : Theme.of(context).primaryColor;
+
+    return GestureDetector(
+      onTap: () {
+        if (_selectedLanguage != value) {
           setState(() => _selectedLanguage = value);
-          // FIX: Re-run search when language changes if a search was already performed
-          if (_hasSearched && _controller.text.isNotEmpty) {
+          if (_hasSearched && _controller.text.trim().isNotEmpty) {
             _performSearch();
           }
-        },
+        }
+      },
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? primaryColor.withValues(alpha: isDark ? 0.3 : 0.15)
+              : (isDark ? Colors.grey.shade800 : Colors.grey.shade100),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? primaryColor
+                : (isDark ? Colors.grey.shade700 : Colors.grey.shade300),
+            width: isSelected ? 1.5 : 1,
+          ),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(
-              isSelected
-                  ? Icons.radio_button_checked
-                  : Icons.radio_button_unchecked,
-              size: 18,
-              color: isSelected ? Theme.of(context).primaryColor : Colors.grey,
-            ),
-            const SizedBox(width: 4),
-            Flexible(
-              child: Text(
-                value,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isDark ? Colors.grey.shade300 : AppTheme.textDark,
-                ),
+            if (isSelected) ...[
+              Icon(Icons.check, size: 13, color: primaryColor),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                color: isSelected
+                    ? (isDark ? Colors.white : primaryColor)
+                    : (isDark ? Colors.grey.shade300 : Colors.grey.shade800),
               ),
             ),
           ],
