@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
-import 'package:timezone/data/latest_all.dart' as tz;
+import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/timezone.dart' as tz;
 
 /// Production Daily Hadith Notification Service
@@ -26,6 +26,7 @@ class NotificationService {
     if (_initialized) return;
     try {
       tz.initializeTimeZones();
+      _configureLocalTimeZone();
 
       const AndroidInitializationSettings androidSettings =
           AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -130,6 +131,37 @@ class NotificationService {
           UILocalNotificationDateInterpretation.absoluteTime,
       matchDateTimeComponents: DateTimeComponents.time,
     );
+  }
+
+  /// Without this, `tz.local` stays UTC and the 12:00 / 18:00 reminders fire at
+  /// UTC wall-clock time instead of the user's local time. Pure Dart (no native
+  /// plugin): picks the tz location whose UTC offset matches the device both now
+  /// and six months from now (so DST behaviour matches too), then falls back to
+  /// an offset-only match. If nothing matches, the default is left untouched.
+  static void _configureLocalTimeZone() {
+    try {
+      final now = DateTime.now();
+      final later = now.add(const Duration(days: 182));
+      final nowMs = now.millisecondsSinceEpoch;
+      final laterMs = later.millisecondsSinceEpoch;
+      final nowOffset = now.timeZoneOffset.inMilliseconds;
+      final laterOffset = later.timeZoneOffset.inMilliseconds;
+
+      tz.Location? exact;
+      tz.Location? offsetOnly;
+      for (final loc in tz.timeZoneDatabase.locations.values) {
+        if (loc.timeZone(nowMs).offset != nowOffset) continue;
+        offsetOnly ??= loc;
+        if (loc.timeZone(laterMs).offset == laterOffset) {
+          exact = loc;
+          break;
+        }
+      }
+      final chosen = exact ?? offsetOnly;
+      if (chosen != null) tz.setLocalLocation(chosen);
+    } catch (e) {
+      debugPrint('Timezone setup error: $e');
+    }
   }
 
   static tz.TZDateTime _nextInstanceOfTime(int hour, int minute) {

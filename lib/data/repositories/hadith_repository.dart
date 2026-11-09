@@ -1,19 +1,12 @@
 import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/models/models.dart';
-import '../isar/isar_service.dart';
 import '../database/app_database.dart';
 
 final databaseProvider = Provider<AppDatabase>((ref) => AppDatabase.instance);
-final isarServiceProvider = Provider<IsarService>(
-  (ref) => IsarService.instance,
-);
 
 final hadithRepositoryProvider = Provider<HadithRepository>((ref) {
-  return HadithRepository(
-    ref.watch(databaseProvider),
-    ref.watch(isarServiceProvider),
-  );
+  return HadithRepository(ref.watch(databaseProvider));
 });
 
 final lastProgressProvider = FutureProvider<ReadingProgress?>((ref) async {
@@ -23,8 +16,7 @@ final lastProgressProvider = FutureProvider<ReadingProgress?>((ref) async {
 
 class HadithRepository {
   final AppDatabase _db;
-  final IsarService? isar;
-  HadithRepository(this._db, [this.isar]);
+  HadithRepository(this._db);
 
   // --- Books ---
   Future<List<HadithBook>> getBooks() async {

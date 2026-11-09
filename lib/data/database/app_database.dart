@@ -1,55 +1,118 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/services.dart'
+    show rootBundle, MethodChannel, PlatformException, MissingPluginException;
 import 'package:path/path.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:sqflite/sqflite.dart';
 
+/// Thrown when the device does not have enough free storage to install the
+/// bundled (~100 MB) hadith database.
+class InsufficientStorageException implements Exception {
+  final String message;
+  const InsufficientStorageException([
+    this.message = 'Not enough free storage space to prepare the hadith library.',
+  ]);
+  @override
+  String toString() => 'InsufficientStorageException: $message';
+}
+
 /// Production database with asset-copy-on-first-launch pattern.
 /// Data tables (chapters, hadiths) come from the pre-built asset.
 /// User tables (bookmarks, collections, notes, reading_progress) are created on open.
+///
+/// Crash-safety notes (Play Console vitals fixes):
+///  * [database] is single-flight: concurrent callers share ONE open/copy. Previously
+///    several providers could start copying the 100 MB file at the same time and one
+///    of them would delete the half-written file of another (SQLiteDiskIOException).
+///  * The asset is copied natively (streamed, on a background thread) to a temp file
+///    and renamed only when complete, so a killed process can never leave a truncated
+///    database behind and rootBundle.load() of 100 MB no longer blocks the engine/ANR.
+///  * A failed open / failed sanity check rebuilds the local copy once automatically.
 class AppDatabase {
   static final AppDatabase instance = AppDatabase._init();
   static Database? _database;
+  static Future<Database>? _opening;
   static const String _dbName = 'all_hadith.db';
   static const int _dbVersion = 8;
   static const Set<String> _requiredTables = {'books', 'chapters', 'hadiths'};
+  static const MethodChannel _assetChannel =
+      MethodChannel('com.taha.allhadithshahih/assets');
+
+  /// A fully copied database is never smaller than this (bundled asset is ~104 MB).
+  /// Anything smaller is a truncated copy from an interrupted install and is rebuilt.
+  static const int _minCompleteDbBytes = 100 * 1000 * 1000;
 
   AppDatabase._init();
 
   Future<Database> get database async {
-    if (_database != null) return _database!;
-    _database = await _openDatabase();
-    return _database!;
+    final existing = _database;
+    if (existing != null) return existing;
+
+    final inFlight = _opening ??= _openWithRecovery();
+    try {
+      final db = await inFlight;
+      _database = db;
+      return db;
+    } finally {
+      _opening = null;
+    }
+  }
+
+  /// Opens the database, validates it, and rebuilds the local copy once if it is
+  /// corrupt / truncated / unreadable. A second failure is propagated to the caller.
+  Future<Database> _openWithRecovery() async {
+    if (kIsWeb) return _openDatabase();
+
+    Database? db;
+    try {
+      db = await _openDatabase();
+      await _validate(db);
+      return db;
+    } on InsufficientStorageException {
+      try {
+        await db?.close();
+      } catch (_) {}
+      rethrow;
+    } catch (e) {
+      debugPrintError('Database open/validate failed ($e). Rebuilding local copy once.');
+      try {
+        await db?.close();
+      } catch (_) {}
+      await _deleteLocalFiles();
+      return _openDatabase();
+    }
+  }
+
+  /// Cheap sanity check (touches the first rows and the last rows of the file).
+  Future<void> _validate(Database db) async {
+    final books = await db.rawQuery('SELECT COUNT(*) AS c FROM books');
+    if (((books.first['c'] as int?) ?? 0) == 0) {
+      throw StateError('books table is empty');
+    }
+    final last = await db.rawQuery(
+      'SELECT id FROM hadiths ORDER BY id DESC LIMIT 1',
+    );
+    if (last.isEmpty) {
+      throw StateError('hadiths table is empty');
+    }
   }
 
   Future<Database> _openDatabase() async {
-    final dbPath = await _getDatabasePath();
-
     // On web, we build in-memory (asset copy not supported)
     if (kIsWeb) {
       return _openWebDatabase();
     }
 
+    final dbPath = await _getDatabasePath();
     await _ensureNativeDatabaseFile(dbPath);
 
     return await openDatabase(
       dbPath,
       version: _dbVersion,
-      onConfigure: _onConfigure,
       onOpen: _onOpen,
       onUpgrade: _onUpgrade,
     );
-  }
-
-  Future<void> _onConfigure(Database db) async {
-    try {
-      await db.execute('PRAGMA journal_mode = WAL');
-      await db.execute('PRAGMA synchronous = NORMAL');
-      await db.execute('PRAGMA cache_size = -2000'); // 2MB cache, ideal for low RAM phones
-      await db.execute('PRAGMA temp_store = MEMORY');
-      await db.execute('PRAGMA foreign_keys = ON');
-    } catch (_) {}
   }
 
   Future<String> _getDatabasePath() async {
@@ -60,34 +123,87 @@ class AppDatabase {
     return join(dbDir.path, _dbName);
   }
 
-  /// Copy the pre-built database from assets to the app directory.
-  Future<void> _copyFromAssets(String targetPath) async {
-    final data = await rootBundle.load('assets/db/$_dbName');
-    final bytes = data.buffer.asUint8List(
-      data.offsetInBytes,
-      data.lengthInBytes,
-    );
-    if (bytes.isEmpty) {
-      throw StateError('Bundled database asset assets/db/$_dbName is empty.');
+  Future<void> _deleteLocalFiles() async {
+    _database = null;
+    final path = await _getDatabasePath();
+    for (final suffix in const ['', '-wal', '-shm', '-journal', '.tmp']) {
+      try {
+        final f = File('$path$suffix');
+        if (await f.exists()) await f.delete();
+      } catch (_) {}
     }
-    await File(targetPath).writeAsBytes(bytes, flush: true);
+  }
+
+  /// Copy the pre-built database from assets to the app directory.
+  ///
+  /// Android: streamed natively on a background thread (constant memory, atomic rename).
+  /// Other platforms / fallback: Dart copy into a temp file followed by an atomic rename.
+  Future<void> _copyFromAssets(String targetPath) async {
+    if (!kIsWeb && Platform.isAndroid) {
+      try {
+        await _assetChannel.invokeMethod<int>('copyAsset', {
+          'assetPath': 'assets/db/$_dbName',
+          'targetPath': targetPath,
+        });
+        return;
+      } on PlatformException catch (e) {
+        if (e.code == 'NO_SPACE') {
+          throw InsufficientStorageException(e.message ?? 'No space left on device');
+        }
+        debugPrintError('Native asset copy failed (${e.code}: ${e.message}). Using Dart fallback.');
+      } on MissingPluginException {
+        debugPrintError('Native asset copy channel missing. Using Dart fallback.');
+      }
+    }
+
+    final tmp = File('$targetPath.tmp');
+    try {
+      final data = await rootBundle.load('assets/db/$_dbName');
+      final bytes = data.buffer.asUint8List(
+        data.offsetInBytes,
+        data.lengthInBytes,
+      );
+      if (bytes.isEmpty) {
+        throw StateError('Bundled database asset assets/db/$_dbName is empty.');
+      }
+      if (await tmp.exists()) await tmp.delete();
+      await tmp.writeAsBytes(bytes, flush: true);
+      final target = File(targetPath);
+      if (await target.exists()) await target.delete();
+      await tmp.rename(targetPath);
+    } on FileSystemException catch (e) {
+      try {
+        if (await tmp.exists()) await tmp.delete();
+      } catch (_) {}
+      final code = e.osError?.errorCode;
+      if (code == 28 || (e.message.toLowerCase().contains('no space'))) {
+        throw const InsufficientStorageException();
+      }
+      rethrow;
+    }
   }
 
   Future<void> _ensureNativeDatabaseFile(String dbPath) async {
     final dbFile = File(dbPath);
-    final exists = await dbFile.exists();
 
-    // Fast path for low-end phones: If DB exists and has substantial data (>5MB),
-    // skip the expensive probe connection and sqlite_master queries completely.
-    if (exists) {
+    // Leftover temp file from an interrupted copy is never valid.
+    final stale = File('$dbPath.tmp');
+    if (await stale.exists()) {
+      try {
+        await stale.delete();
+      } catch (_) {}
+    }
+
+    if (await dbFile.exists()) {
       final length = await dbFile.length();
-      if (length > 5000000) {
+      // Fast path for low-end phones: a complete database is skipped without probing.
+      if (length >= _minCompleteDbBytes) {
         return;
       }
       debugPrintError(
-        'Database file is suspiciously small ($length bytes). Resetting local copy.',
+        'Database file is incomplete ($length bytes). Resetting local copy.',
       );
-      await dbFile.delete();
+      await _deleteLocalFiles();
     }
 
     await _copyFromAssets(dbPath);
@@ -121,7 +237,9 @@ class AppDatabase {
       debugPrintError('Failed to validate database schema: $e');
       return false;
     } finally {
-      await probeDb?.close();
+      try {
+        await probeDb?.close();
+      } catch (_) {}
     }
   }
 
@@ -365,18 +483,24 @@ CREATE TABLE IF NOT EXISTS reading_progress (
   /// Delete corrupted DB and re-copy from assets
   Future<void> resetDatabase() async {
     if (kIsWeb) return;
-    final path = await _getDatabasePath();
-    _database?.close();
+    try {
+      await _database?.close();
+    } catch (_) {}
     _database = null;
-    final file = File(path);
-    if (await file.exists()) await file.delete();
+    _opening = null;
+    await _deleteLocalFiles();
     _database = await _openDatabase();
   }
 
   Future<void> close() async {
-    final db = await database;
-    await db.close();
+    final db = _database;
     _database = null;
+    _opening = null;
+    if (db != null) {
+      try {
+        await db.close();
+      } catch (_) {}
+    }
   }
 }
 

@@ -6,12 +6,6 @@
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
 
-# Isar rules
--keep class io.isar.** { *; }
--keep class * implements io.isar.IsarObject { *; }
--keep interface io.isar.IsarObject { *; }
--keep class _*IsarSchema { *; }
-
 # Sqflite rules
 -keep class com.tekartik.sqflite.** { *; }
 
@@ -50,4 +44,30 @@
 # General
 -dontwarn io.flutter.embedding.**
 -dontwarn com.google.android.ump.**
+# --- Gson / flutter_local_notifications (FIX: Gson TypeToken RuntimeException) ---
+# flutter_local_notifications persists and reloads scheduled notifications with
+# Gson using anonymous `new TypeToken<...>() {}` subclasses. R8 full mode strips
+# the generic `Signature` attribute, so TypeToken.getSuperclassTypeParameter()
+# throws "TypeToken must be created with a type argument" the moment the
+# alarm / boot receiver fires. These rules are the official Gson R8 rules.
+-keepattributes Signature
+-keepattributes *Annotation*
+-keepattributes InnerClasses,EnclosingMethod
+-keepattributes RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations
+
+-keep class com.google.gson.reflect.TypeToken { *; }
+-keep class * extends com.google.gson.reflect.TypeToken
+-keep,allowobfuscation,allowshrinking class com.google.gson.reflect.TypeToken
+-keep,allowobfuscation,allowshrinking class * extends com.google.gson.reflect.TypeToken
+-keep class com.google.gson.stream.** { *; }
+-keepclassmembers,allowobfuscation class * {
+    @com.google.gson.annotations.SerializedName <fields>;
+}
+
+# Notification model classes are (de)serialised by Gson through reflection:
+# their field names must survive shrinking/obfuscation.
+-keep class com.dexterous.flutterlocalnotifications.** { *; }
+-keep class com.dexterous.** { *; }
+
 -ignorewarnings
+

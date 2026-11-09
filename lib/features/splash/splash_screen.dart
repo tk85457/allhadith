@@ -29,6 +29,9 @@ class _SplashScreenState extends State<SplashScreen>
   late Animation<double> _circleOpacity;
   late Animation<double> _glowOpacity;
 
+  bool _initFailed = false;
+  String _errorMessage = '';
+
   @override
   void initState() {
     super.initState();
@@ -87,27 +90,93 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _initAndNavigate() async {
-    // 1. Fire non-critical background services without blocking splash
-    unawaited(AdService.gatherConsentAndInitialize().catchError((e) {
-      debugPrint('AdService init handled: $e');
-      return AdService.canRequestAds;
-    }));
-    NotificationService.initialize();
-    InAppReviewService.recordAppOpen();
+    if (mounted && _initFailed) {
+      setState(() => _initFailed = false);
+    }
 
-    // 2. Load essential local DB and preferences in parallel
-    final results = await Future.wait([
-      // Snappy minimum splash duration (600ms) for clean branding transition
-      Future.delayed(const Duration(milliseconds: 600)),
-      AppDatabase.instance.database,
-      SharedPreferences.getInstance(),
-    ]);
+    try {
+      // Load essential local DB and preferences in parallel.
+      // (First launch copies the ~100 MB database natively on a background
+      // thread; the single-flight AppDatabase guarantees only one copy runs.)
+      final results = await Future.wait([
+        // Snappy minimum splash duration (600ms) for clean branding transition
+        Future.delayed(const Duration(milliseconds: 600)),
+        AppDatabase.instance.database,
+        SharedPreferences.getInstance(),
+      ]);
 
-    if (!mounted) return;
+      if (!mounted) return;
 
-    final prefs = results[2] as SharedPreferences;
-    final onboardingDone = prefs.getBool('onboarding_done') ?? false;
-    context.go(onboardingDone ? '/books' : '/language-select');
+      final prefs = results[2] as SharedPreferences;
+      final onboardingDone = prefs.getBool('onboarding_done') ?? false;
+      context.go(onboardingDone ? '/books' : '/language-select');
+
+      // Heavy third-party SDKs start only AFTER the first real screen is on
+      // screen. Starting AdMob (3 mediation adapters), UMP consent and the
+      // notification plugin while the DB is being installed starved the UI
+      // thread on low-end phones and caused "Input dispatching timed out" ANRs.
+      _startDeferredServices();
+    } on InsufficientStorageException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _initFailed = true;
+        _errorMessage = e.message;
+      });
+    } catch (e) {
+      debugPrint('Splash init failed: $e');
+      if (!mounted) return;
+      setState(() {
+        _initFailed = true;
+        _errorMessage =
+            'Something went wrong while preparing the hadith library. Please try again.';
+      });
+    }
+  }
+
+  static bool _deferredServicesStarted = false;
+
+  static void _startDeferredServices() {
+    if (_deferredServicesStarted) return;
+    _deferredServicesStarted = true;
+    Future.delayed(const Duration(milliseconds: 1500), () {
+      unawaited(AdService.gatherConsentAndInitialize().catchError((e) {
+        debugPrint('AdService init handled: $e');
+        return AdService.canRequestAds;
+      }));
+      unawaited(NotificationService.initialize().catchError((e) {
+        debugPrint('NotificationService init handled: $e');
+      }));
+      try {
+        InAppReviewService.recordAppOpen();
+      } catch (e) {
+        debugPrint('InAppReviewService handled: $e');
+      }
+    });
+  }
+
+  Widget _buildError() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Column(
+        children: [
+          Text(
+            _errorMessage,
+            textAlign: TextAlign.center,
+            style: GoogleFonts.rubik(
+              fontSize: 14,
+              color: Colors.white,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: _initAndNavigate,
+            icon: const Icon(Icons.refresh_rounded),
+            label: const Text('Try again'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -310,9 +379,11 @@ class _SplashScreenState extends State<SplashScreen>
 
                 const SizedBox(height: 40),
 
+                if (_initFailed) _buildError(),
+
                 SizedBox(
                   width: 180,
-                  child: LinearProgressIndicator(
+                  child: _initFailed ? const SizedBox.shrink() : LinearProgressIndicator(
                     backgroundColor: Colors.white.withValues(alpha: 0.15),
                     valueColor: const AlwaysStoppedAnimation<Color>(
                       AppTheme.desertDuneGold,
@@ -325,7 +396,7 @@ class _SplashScreenState extends State<SplashScreen>
                 const SizedBox(height: 12),
 
                 Text(
-                  'Loading...',
+                  _initFailed ? '' : 'Loading...',
                   style: GoogleFonts.rubik(
                     fontSize: 12,
                     color: AppTheme.desertDuneGold.withValues(alpha: 0.8),
